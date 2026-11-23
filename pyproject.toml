@@ -9,6 +9,6 @@ dependencies = ["aiohttp>=3.11.8", "Pillow"]
 Repository = "https://github.com/jmovie-cloud/ComfyUI-JMovie"
 
 [tool.comfy]
+PublisherId = "jmovie-cloud"
 DisplayName = "JMovie Cloud"
 requires-comfyui = ">=0.36.0"
-# Set PublisherId after the Registry publisher is assigned.
