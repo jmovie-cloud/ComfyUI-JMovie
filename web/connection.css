@@ -1,0 +1,90 @@
+.jmovie-connect {
+    position: fixed;
+    inset: 0;
+    width: min(460px, calc(100vw - 2rem));
+    height: fit-content;
+    margin: auto;
+    padding: 1.5rem;
+    pointer-events: auto;
+    border: 1px solid #483b3d;
+    border-top: 3px solid #ff5c57;
+    border-radius: 12px;
+    background: #191718;
+    color: #f7f5f5;
+    box-shadow: 0 20px 56px rgb(0 0 0 / 55%);
+    color-scheme: dark;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.jmovie-connect::backdrop {
+    background: rgb(0 0 0 / 60%);
+}
+
+.jmovie-connect h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    line-height: 1.2;
+}
+
+.jmovie-connect__status {
+    margin: .875rem 0;
+    color: #cfc5c7;
+}
+
+.jmovie-connect__code-field {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .625rem .5rem 1rem;
+    border: 1px solid #604e52;
+    border-radius: 8px;
+    background: #111;
+}
+
+.jmovie-connect__code-field code {
+    font: 650 1.5rem/1.3 ui-monospace, monospace;
+    letter-spacing: .13em;
+    user-select: all;
+}
+
+.jmovie-connect__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: 1.25rem;
+}
+
+.jmovie-connect button,
+.jmovie-connect__button {
+    padding: .5rem .75rem;
+    border: 1px solid #6d5b60;
+    border-radius: 7px;
+    background: #252022;
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.jmovie-connect__actions .jmovie-connect__primary {
+    border-color: #ff5c57;
+    background: #ff5c57;
+    color: #190d0f;
+    font-weight: 700;
+}
+
+.jmovie-connect button:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+.jmovie-connect :focus-visible {
+    outline: 2px solid #ffaaa5;
+    outline-offset: 2px;
+}
+
+.jmovie-connect [hidden] {
+    display: none;
+}

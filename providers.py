@@ -7,52 +7,27 @@ from .transport import RequestError, api_key, client, request_json
 
 OPENAI_MODELS = ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst")
 SEEDREAM_MODELS = ("dola-seedream-5-0-pro-260628",)
-MINIMAX_MODELS = ("MiniMax-H3-Image", "MiniMax-H3-Image-Highspeed")
 MAX_IMAGE_BYTES = 40 * 1024 * 1024
 
 
 def image_request(model, prompt, reference=None):
-    if model in OPENAI_MODELS:
-        url = "https://api.openai.com/v1/images/generations"
-        key_name = "OPENAI_API_KEY"
-        payload = {"model": model, "prompt": prompt}
-        if reference is not None:
-            url = "https://api.openai.com/v1/images/edits"
-            payload = aiohttp.FormData()
-            payload.add_field("model", model)
-            payload.add_field("prompt", prompt)
-            payload.add_field("image[]", reference, filename="reference.png", content_type="image/png")
-        return url, key_name, payload
-
-    if model in MINIMAX_MODELS:
-        url = "https://api.minimax.io/v1/images/generations"
-        payload = {"model": model, "prompt": prompt, "response_format": "b64_json", "area": "2K"}
-        if reference is not None:
-            url = "https://api.minimax.io/v1/images/edits"
-            encoded = base64.b64encode(reference).decode("ascii")
-            payload["images"] = [{"image_url": f"data:image/png;base64,{encoded}"}]
-        return url, "MINIMAX_API_KEY", payload
-
-    if model in SEEDREAM_MODELS:
-        payload = {"model": model, "prompt": prompt, "response_format": "b64_json"}
-        if reference is not None:
-            encoded = base64.b64encode(reference).decode("ascii")
-            payload["image"] = f"data:image/png;base64,{encoded}"
-        return (
-            "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations",
-            "ARK_API_KEY",
-            payload,
-        )
-
-    raise ValueError("The selected image model is unsupported.")
+    if model not in OPENAI_MODELS:
+        raise ValueError("Choose a GPT Image model to use your OpenAI API key.")
+    if reference is None:
+        return "https://api.openai.com/v1/images/generations", {"model": model, "prompt": prompt}
+    payload = aiohttp.FormData()
+    payload.add_field("model", model)
+    payload.add_field("prompt", prompt)
+    payload.add_field("image[]", reference, filename="reference.png", content_type="image/png")
+    return "https://api.openai.com/v1/images/edits", payload
 
 
 async def generate_image(model, prompt, reference=None):
     if reference is not None and len(reference) > 30_000_000:
         raise ValueError("Reference image exceeds 30 MB after PNG encoding.")
-    url, key_name, payload = image_request(model, prompt, reference)
+    url, payload = image_request(model, prompt, reference)
 
-    key = api_key(key_name)
+    key = api_key("OPENAI_API_KEY")
     body = {"data": payload} if isinstance(payload, aiohttp.FormData) else {"json": payload}
     try:
         async with client(300) as session:

@@ -1,7 +1,7 @@
 [project]
 name = "jmovie-cloud"
 version = "0.1.0"
-description = "JMovie production-account and bring-your-own-key cloud media nodes for ComfyUI."
+description = "Generate images, video and audio in ComfyUI with your JMovie account."
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.11.8", "Pillow"]
 

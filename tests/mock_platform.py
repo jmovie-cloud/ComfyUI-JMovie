@@ -6,14 +6,13 @@ from collections import Counter
 from io import BytesIO
 from pathlib import Path
 import secrets
-from urllib.parse import urlparse
 
 from aiohttp import web
 from PIL import Image
 
 
 API = "/api/v1/comfy"
-SCOPES = {"image:generate", "video:generate", "tasks:read"}
+SCOPES = {"image:generate", "video:generate", "audio:generate", "tasks:read"}
 
 
 def image_bytes(size):
@@ -25,7 +24,7 @@ def image_bytes(size):
 class MockPlatform:
     def __init__(self, fixtures):
         self.video = (fixtures / "movie.mp4").read_bytes()
-        self.music = (fixtures / "music.mp3").read_bytes()
+        self.audio = (fixtures / "audio.wav").read_bytes()
         self.image = image_bytes((320, 320))
         self.tasks = {}
         self.idempotency = {}
@@ -45,7 +44,6 @@ class MockPlatform:
         self.routes.post("/authorize")(self.authorization)
         self.routes.post("/permissions/revoke")(self.browser_revoke)
         self.routes.route("*", "/provider/{provider}/{path:.*}")(self.provider)
-        self.routes.get("/file.mp4")(self.public_media)
         self.routes.get("/stats")(self.stats)
 
     async def device_code(self, request):
@@ -83,7 +81,7 @@ class MockPlatform:
                 raise web.HTTPUnauthorized()
             response = web.Response(text="""
                 <!doctype html><title>JMovie local consent</title><h1>Authorize JMovie Cloud</h1>
-                <p>Generate images and video, and read plugin tasks on the test production account.</p>
+                <p>Generate images, video and audio, and read plugin tasks on the test production account.</p>
                 <form method="post"><label>Device code <input name="user_code"></label>
                 <button>Authorize</button></form>
             """, content_type="text/html")
@@ -123,11 +121,15 @@ class MockPlatform:
         self.require_grant(request)
         payload = await request.json()
         kind = payload.get("kind")
-        assert kind in {"image", "video"} and payload["prompt"]
+        assert kind in {"image", "video", "audio"} and payload["prompt"]
+        if kind == "audio":
+            assert payload["model"] == "seed-audio-1.0-global" and 1 <= payload["duration"] <= 120
         key = request.headers["Idempotency-Key"]
         if key not in self.idempotency:
             self.idempotency[key] = self.create_task("jmovie", kind)
-            self.cost += {"image": 2, "video": 7}[kind]
+            self.cost += {"image": 2, "video": 7, "audio": 3}[kind]
+            if payload["prompt"] == "simulate-unknown":
+                raise web.HTTPServiceUnavailable()
         return web.json_response({"id": self.idempotency[key]}, status=201)
 
     def lookup(self, task_id, service):
@@ -148,68 +150,28 @@ class MockPlatform:
         self.require_grant(request)
         task = self.lookup(request.match_info["task"], "jmovie")
         assert task["polls"] >= 2
-        return web.Response(body=self.image if task["kind"] == "image" else self.video)
-
-    async def public_media(self, request):
-        assert "Authorization" not in request.headers
-        return web.Response(body=self.video, content_type="video/mp4")
+        data, mime = {
+            "image": (self.image, "image/png"), "video": (self.video, "video/mp4"),
+            "audio": (self.audio, "audio/wav"),
+        }[task["kind"]]
+        return web.Response(body=data, content_type=mime)
 
     async def stats(self, _request):
         return web.json_response({"counts": dict(self.counts), "cost": self.cost, "tasks": list(self.tasks)})
 
     async def provider(self, request):
-        provider, path = request.match_info["provider"], request.match_info["path"]
-        assert request.headers["Authorization"] == f"Bearer mock-{provider}"
-        if path.endswith("music_generation"):
-            body = await request.json()
-            assert body["model"] == "music-3.0" and body["output_format"] == "hex"
-            assert body["is_instrumental"] or body["lyrics"]
-            self.counts["music"] += 1
-            return web.json_response({
-                "data": {"status": 2, "audio": self.music.hex()}, "base_resp": {"status_code": 0},
-            })
-        if provider == "stability":
+        assert request.match_info["provider"] == "openai"
+        assert request.headers["Authorization"] == "Bearer mock-openai"
+        path = request.match_info["path"]
+        assert path in {"v1/images/generations", "v1/images/edits"}
+        if path.endswith("edits"):
             form = await request.post()
-            assert form["output_format"] == "png" and form["image"].file.read(8) == b"\x89PNG\r\n\x1a\n"
-            self.counts["upscale"] += 1
-            return web.Response(body=image_bytes((1280, 1280)), content_type="image/png")
-        if "/images/" in "/" + path:
-            self.counts[f"{provider}_image"] += 1
-            if path.endswith("edits") and provider == "openai":
-                form = await request.post()
-                assert form["image[]"].file.read(8) == b"\x89PNG\r\n\x1a\n"
-            else:
-                body = await request.json()
-                assert body["model"] and body["prompt"]
-            return web.json_response({"data": [{"b64_json": base64.b64encode(self.image).decode()}]})
-
-        service = "h3" if provider == "minimax" else "seedance"
-        if request.method == "POST":
-            body = await request.json()
-            if path.endswith("regeneration"):
-                assert body["model"] == "MiniMax-H3" and body["resolution"] == "2K"
-                self.lookup(body["source_task_id"], "h3")
-                self.counts["h3_regen"] += 1
-            else:
-                roles = [item["role"] for item in body["content"] if item["type"] != "text"]
-                assert body["model"] and body["content"][0]["text"]
-                if roles:
-                    assert roles == ["first_frame", "last_frame"] and body["ratio"] == "adaptive"
-                    for item in body["content"][1:]:
-                        assert item["image_url"]["url"].startswith("data:image/png;base64,")
-            identifier = self.create_task(service, "video")
-            if body.get("content", [{}])[0].get("text") == "simulate-unknown":
-                raise web.HTTPServiceUnavailable()
-            return web.json_response({"task_id" if service == "h3" else "id": identifier})
-
-        identifier = urlparse(path).path.rsplit("/", 1)[-1]
-        task = self.lookup(identifier, service)
-        task["polls"] += 1
-        result = {"status": "running"}
-        if task["polls"] >= 2:
-            field = "url" if service == "h3" else "video_url"
-            result = {"status": "succeeded", "content": {field: "https://mock-media.invalid/file.mp4?signature=local-test"}}
-        return web.json_response({"task": result} if service == "h3" else result)
+            assert form["image[]"].file.read(8) == b"\x89PNG\r\n\x1a\n"
+        else:
+            form = await request.json()
+        assert form["model"].startswith("gpt-image-") and form["prompt"]
+        self.counts["openai_image"] += 1
+        return web.json_response({"data": [{"b64_json": base64.b64encode(self.image).decode()}]})
 
 
 if __name__ == "__main__":

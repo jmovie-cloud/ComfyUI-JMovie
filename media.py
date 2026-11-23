@@ -41,9 +41,9 @@ def decode_video(data):
     return InputImpl.VideoFromFile(stream)
 
 
-def decode_music(data):
+def decode_audio(data):
     try:
-        with av.open(BytesIO(data), mode="r", format="mp3") as container:
+        with av.open(BytesIO(data), mode="r", format="wav") as container:
             source = container.streams.audio[0]
             resampler = av.AudioResampler(format="fltp", layout=source.layout, rate=source.rate)
             frames = [frame.to_ndarray() for packet in container.decode(source) for frame in resampler.resample(packet)]
@@ -55,4 +55,4 @@ def decode_music(data):
                 "sample_rate": source.rate,
             }
     except (ValueError, IndexError, av.FFmpegError):
-        raise RuntimeError("MiniMax did not return usable audio.") from None
+        raise RuntimeError("JMovie did not return usable WAV audio.") from None

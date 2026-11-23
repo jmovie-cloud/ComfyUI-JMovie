@@ -4,7 +4,7 @@ The JMovie backend implements this contract behind `COMFY_CLOUD_ENABLED`. Local 
 
 ## Device authorization
 
-The ComfyUI Python process is an OAuth public client with client ID `jmovie-cloud`. An operator configures the trusted platform origin in `JMOVIE_CLOUD_BASE_URL`. The browser signs in on that origin, displays the production account and permission request, and asks the user to verify the visible device code before approving. Use the OAuth 2.0 device authorization flow and token revocation semantics. [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628), [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009)
+The ComfyUI Python process is an OAuth public client with client ID `jmovie-cloud`. It defaults to the JMovie production platform at `https://j-movie.com`. Operators can override the origin with `JMOVIE_CLOUD_BASE_URL` for a compatible platform or local test. The browser signs in on that origin, displays the production account and permission request, and asks the user to verify the visible device code before approving. Use the OAuth 2.0 device authorization flow and token revocation semantics. [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628), [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009)
 
 | Request under `/api/v1/comfy` | Contract |
 | --- | --- |
@@ -13,7 +13,7 @@ The ComfyUI Python process is an OAuth public client with client ID `jmovie-clou
 | `GET /connection` | Accepts only an active plugin grant and returns 200. Use 401 for invalid, expired or revoked grants. |
 | `POST /oauth/revoke` | Form fields `client_id` and `token`. Revokes the plugin grant. Returns 200 or 204 for a valid request, including an already revoked token. |
 
-The scopes are `image:generate video:generate tasks:read`. Bind grants to one production account and the plugin API audience. Enforce per-operation scope, grant expiration, account status, task ownership and revocation on every request. Device codes are short-lived and single-use. The device, confirmation and token routes are rate-limited. Signed-in users revoke grants on the platform's `/api/v1/comfy/authorizations` page. The ComfyUI process holds the token in memory and the browser receives the consent URL, visible code and status only. The fixture uses synthetic accounts, prices and media.
+The base scopes are `image:generate video:generate tasks:read`. Supporting plugins also request `audio:generate`, which covers audio submission and access to their audio results after consent. Previously approved image and video grants retain their original scopes. Bind grants to one production account and the plugin API audience. Enforce per-operation scope, grant expiration, account status, task ownership and revocation on every request. Signed-in users revoke grants on the platform's `/api/v1/comfy/authorizations` page. The ComfyUI process holds the token in memory and the browser receives the consent URL, visible code and status only.
 
 ## Generation
 
@@ -21,8 +21,8 @@ The scopes are `image:generate video:generate tasks:read`. Bind grants to one pr
 | --- | --- |
 | `POST /tasks` | Bearer grant, `Idempotency-Key` and a JSON request. Returns a task `id`. Replaying the same key with the same request under the same account returns the original task. |
 | `GET /tasks/{id}` | Bearer grant. Returns `kind` and `status` (`queued`, `running`, `succeeded`, `failed`, `cancelled` or `expired`). |
-| `GET /tasks/{id}/result` | Bearer grant. Streams the result bytes of a completed task on the same origin. Image results use PNG, JPEG or WebP. Video results use MP4. |
+| `GET /tasks/{id}/result` | Bearer grant. Streams the result bytes of a completed task on the same origin. Images use PNG, JPEG or WebP, video uses MP4 and audio uses WAV. |
 
-Both create requests send `kind` (`image` or `video`), `model` and `prompt`. Optional `images` entries contain `role` and a PNG data URI in `data`. Video requests also send `resolution`, `ratio`, integer `duration`, and `generate_audio`. Accept provider model IDs as plugin inputs and resolve them through the production account's permitted model and route catalog. The platform owns price validation, reservations, settlement, task history, entitlements and account usage. Associate the idempotency record with acceptance and billing so repeated requests and reauthorization cannot enqueue or bill again. Validate every reference and map it into the production generation service's media representation. Bound payloads and result sizes before sending them through the production platform.
+Create requests send `kind` (`image`, `video` or `audio`), `model` and `prompt`. Image and video requests may send PNG data URIs with a `role` in `images`. Video requests also send `resolution`, `ratio`, integer `duration`, and `generate_audio`. Audio requests use `seed-audio-1.0-global` with a prompt and integer target `duration` of 1–120 seconds. The platform resolves models through the account's permitted route catalog and owns price validation, reservations, settlement, task history and entitlements. Repeated requests and reauthorization preserve the same native task and billing history.
 
 The independent developer API at `api.j-movie.com` is outside this contract.

@@ -25,26 +25,19 @@ ROOT = Path(__file__).resolve().parents[1]
 def launch_comfy(args):
     platform = f"http://127.0.0.1:{args.platform_port}"
     comfy = f"http://127.0.0.1:{args.comfy_port}"
-    providers = {
-        "api.openai.com": "openai", "api.minimax.io": "minimax",
-        "ark.ap-southeast.bytepluses.com": "byteplus", "api.stability.ai": "stability",
-    }
     original_request = aiohttp.ClientSession._request
 
     async def request(self, method, url, **kwargs):
         parsed = urlsplit(str(url))
-        if parsed.hostname in providers:
-            url = f"{platform}/provider/{providers[parsed.hostname]}{parsed.path}"
-        elif parsed.hostname == "mock-media.invalid":
-            url = f"{platform}{parsed.path}"
+        if parsed.hostname == "api.openai.com":
+            url = f"{platform}/provider/openai{parsed.path}"
         elif not str(url).startswith((f"{platform}/", f"{comfy}/")):
             raise RuntimeError("Only synthetic local endpoints are permitted in the smoke test.")
         return await original_request(self, method, url, **kwargs)
 
     aiohttp.ClientSession._request = request
     os.environ.update({
-        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai", "MINIMAX_API_KEY": "mock-minimax",
-        "ARK_API_KEY": "mock-byteplus", "STABILITY_API_KEY": "mock-stability",
+        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai",
     })
     entry = args.comfy / "main.py"
     sys.path.insert(0, str(args.comfy))
@@ -155,7 +148,7 @@ def save_fixtures(fixtures):
     ], check=True)
     subprocess.run([
         "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "libmp3lame", str(fixtures / "music.mp3"),
+        "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "pcm_s16le", str(fixtures / "audio.wav"),
     ], check=True)
 
 
@@ -171,24 +164,24 @@ def browser_checks(base, platform, video, load_image, fixtures):
         page.on("pageerror", lambda error: frontend_errors.append(str(error)))
         page.goto(base)
         page.wait_for_function("!!window.app?.graph")
-        page.wait_for_function("!!window.LiteGraph?.registered_node_types?.JMovieCloudVideo")
+        page.wait_for_function("!!window.LiteGraph?.registered_node_types?.JMovieManagedVideo")
 
-        workflow = json.loads((ROOT / "workflows" / "cloud-image.json").read_text())
+        workflow = json.loads((ROOT / "examples/byok/cloud-image.json").read_text())
         graph = page.evaluate("""async workflow => {
             await window.app.handleFile(new File([JSON.stringify(workflow)], 'cloud-image.json', {type: 'application/json'}));
             return (await window.app.graphToPrompt()).output;
         }""", workflow)
         assert graph["1"]["class_type"] == "JMovieCloudImage" and graph["2"]["inputs"]["images"] == ["1", 0]
         run_graph(base, graph)
-        print("Browser imported and executed the original Cloud Image example.", flush=True)
+        print("Browser imported and executed the advanced BYOK image example.", flush=True)
 
-        for name in ("cloud-video.json", "jmovie-image.json"):
-            workflow = json.loads((ROOT / "workflows" / name).read_text())
+        for path in sorted((ROOT / "workflows").glob("jmovie-*.json")):
+            workflow = json.loads(path.read_text())
             serialized = page.evaluate("""async ([workflow, name]) => {
                 await window.app.handleFile(new File([JSON.stringify(workflow)], name, {type: 'application/json'}));
                 const output = (await window.app.graphToPrompt()).output;
                 return {output, graph: window.app.graph.serialize()};
-            }""", [workflow, name])
+            }""", [workflow, path.name])
             assert serialized["output"]["1"]["class_type"] == workflow["nodes"][0]["type"]
             values = serialized["graph"]["nodes"][0]["widgets_values"]
             assert len(values) == len(workflow["nodes"][0]["widgets_values"]), values
@@ -209,7 +202,18 @@ def browser_checks(base, platform, video, load_image, fixtures):
             dialog.get_by_role("button", name="Connect JMovie").click()
         auth = popup.value
         auth.wait_for_url(f"{platform}/authorize")
-        expect(dialog.get_by_role("status")).to_contain_text("JMV-2206")
+        expect(dialog.locator("code")).to_have_text("JMV-2206")
+        context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)
+        page.bring_to_front()
+        dialog.get_by_role("button", name="Copy code").click()
+        expect(dialog.get_by_role("button", name="Copied")).to_be_visible()
+        assert page.evaluate("navigator.clipboard.readText()") == "JMV-2206"
+        dialog.get_by_role("button", name="Close").click()
+        page.evaluate("""() => {
+            window.app.graph.getNodeById(1).widgets.find(widget => widget.name === 'Connect JMovie').callback();
+        }""")
+        expect(dialog.locator("code")).to_have_text("JMV-2206")
+        expect(dialog.get_by_role("link", name="Open authorization page")).to_be_visible()
         auth.get_by_label("Account").fill("test-creator")
         auth.get_by_label("Password").fill("test-password")
         auth.get_by_role("button", name="Sign in").click()
@@ -218,15 +222,24 @@ def browser_checks(base, platform, video, load_image, fixtures):
         expect(auth.get_by_text("Authorized. Return to ComfyUI.")).to_be_visible()
         expect(dialog.get_by_role("status")).to_have_text("Connected to the JMovie production platform.")
 
-        managed_image = image_graph(node("JMovieManagedImage", model="gpt-image-2", prompt="Local managed image",
+        managed_image = image_graph(node("JMovieManagedImage", model="dola-seedream-5-0-pro-260628", prompt="Local managed image",
                                          run_number=0, reference_image=["3", 0]))
         managed_image["3"] = load_image
-        managed_video = video_graph(node("JMovieCloudVideo", **{**video, "connection": "JMovie"}))
+        managed_video = video_graph(node("JMovieManagedVideo", **video))
+        legacy_managed_video = video_graph(node("JMovieCloudVideo", **video, connection="JMovie", generate_audio=True))
+        audio = {
+            "1": node("JMovieManagedAudio", prompt="A calm narrator says hello.", duration=10, run_number=0),
+            "2": node("PreviewAudio", audio=["1", 0]),
+        }
         run_graph(base, managed_image)
         run_graph(base, managed_video)
         run_graph(base, managed_video)
+        run_graph(base, legacy_managed_video)
+        task = json_request(f"{platform}/stats")["tasks"][-1]
+        run_graph(base, video_graph(node("JMovieResumeVideo", service="JMovie", task_id=task)))
+        run_graph(base, audio)
         stats = json_request(f"{platform}/stats")
-        assert stats["counts"]["jmovie_submit"] == 2 and stats["cost"] == 9, stats
+        assert stats["counts"]["jmovie_submit"] == 3 and stats["cost"] == 12, stats
 
         page.request.post(f"{platform}/permissions/revoke")
         run_graph(base, managed_video, error="HTTP 401")
@@ -246,7 +259,12 @@ def browser_checks(base, platform, video, load_image, fixtures):
         second.get_by_role("button", name="Authorize").click()
         expect(dialog.get_by_role("status")).to_have_text("Connected to the JMovie production platform.")
         run_graph(base, managed_video)
-        assert json_request(f"{platform}/stats")["cost"] == 9
+        assert json_request(f"{platform}/stats")["cost"] == 12
+        unknown = video_graph(node("JMovieManagedVideo", **{**video, "prompt": "simulate-unknown"}))
+        run_graph(base, unknown, error="Submission unconfirmed")
+        accepted = json_request(f"{platform}/stats")
+        run_graph(base, unknown)
+        assert json_request(f"{platform}/stats") == accepted
         dialog.get_by_role("button", name="Disconnect").click()
         expect(dialog.get_by_role("status")).to_contain_text("Connect your JMovie production account")
         run_graph(base, managed_image, error="Use Connect JMovie")
@@ -269,54 +287,28 @@ def smoke(args):
         "--comfy-port", str(args.comfy_port), "--platform-port", str(args.platform_port),
     ]
     platform_cmd = [sys.executable, str(ROOT / "tests" / "mock_platform.py"), str(fixtures), str(args.platform_port)]
-    video = dict(connection="BYOK", model="MiniMax-H3", prompt="Synthetic cup dolly", duration=5,
-                 ratio="16:9", resolution="model default", generate_audio=True, run_number=0)
+    video = dict(model="dreamina-seedance-2-5-260628", prompt="Synthetic cup dolly", duration=5,
+                 ratio="16:9", resolution="model default", run_number=0)
     load_image = node("LoadImage", image="reference.png")
-    h3 = video_graph(node("JMovieCloudVideo", **video))
     with process(platform_cmd, fixtures / "platform.log") as mock:
         ready(f"{platform}/stats", mock)
         with process(comfy_cmd, fixtures / "comfy.log") as comfy:
             info = ready(f"{base}/object_info", comfy)
             installed = {key for key in info if key.startswith("JMovie")}
-            assert len(installed) == 7, installed
-            for model in ("gpt-image-2", "dola-seedream-5-0-pro-260628", "MiniMax-H3-Image"):
+            assert len(installed) == 6, installed
+            primary = {key for key in installed if info[key]["category"] == "JMovie Cloud"}
+            assert primary == {"JMovieManagedImage", "JMovieManagedVideo", "JMovieManagedAudio"}, primary
+            byok = {key for key in installed if info[key]["category"].endswith("/BYOK")}
+            assert byok == {"JMovieCloudImage"}, byok
+            assert "connection" not in info["JMovieManagedVideo"]["input"]["required"]
+            for model in ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"):
                 run_graph(base, image_graph(node("JMovieCloudImage", model=model, prompt="Ceramic cup")))
             edit = image_graph(node("JMovieCloudImage", model="gpt-image-2.5-flare", prompt="Glaze the cup",
                                      reference_image=["3", 0]))
             edit["3"] = load_image
             run_graph(base, edit)
-            run_graph(base, h3)
-            source_id = json_request(f"{platform}/stats")["tasks"][-1]
-            run_graph(base, video_graph(node("JMovieResumeVideo", service="MiniMax", task_id=source_id)))
-            run_graph(base, video_graph(node("JMovieH3Upscale", source_task_id=source_id, run_number=0)))
-            seedance = {**video, "model": "dreamina-seedance-2-5-260628",
-                        "first_frame": ["3", 0], "last_frame": ["3", 0]}
-            run_graph(base, video_graph(node("JMovieCloudVideo", **seedance), {"3": load_image}))
-            run_graph(base, {"1": node("JMovieCloudMusic", prompt="Acoustic background", instrumental=True, lyrics=""),
-                             "2": node("SaveAudio", audio=["1", 0], filename_prefix="smoke/music")})
-            upscale = image_graph(node("JMovieCloudImageUpscale", image=["3", 0]))
-            upscale["3"] = load_image
-            result = run_graph(base, upscale)["outputs"]["2"]["images"][0]
-            with Image.open(fixtures / "output" / result["subfolder"] / result["filename"]) as image:
-                assert image.size == (1280, 1280)
-
-            ambiguous = video_graph(node("JMovieCloudVideo", **{**video, "prompt": "simulate-unknown"}))
-            run_graph(base, ambiguous, error="Submission unconfirmed")
-            before_retry = json_request(f"{platform}/stats")
-            run_graph(base, ambiguous, error="unconfirmed submission")
-            assert json_request(f"{platform}/stats") == before_retry
-            recovered = before_retry["tasks"][-1]
-            run_graph(base, video_graph(node("JMovieResumeVideo", service="MiniMax", task_id=recovered)))
-            print("BYOK image, edit, H3, Seedance frames, music and both upscale nodes saved native media.", flush=True)
+            print("GPT Image BYOK used the official OpenAI endpoint for generation and editing.", flush=True)
             browser_checks(base, platform, video, load_image, fixtures)
-            before_restart = json_request(f"{platform}/stats")
-        with process(comfy_cmd, fixtures / "comfy-restart.log") as comfy:
-            ready(f"{base}/object_info", comfy)
-            run_graph(base, h3)
-            assert json_request(f"{platform}/stats") == before_restart
-            run_graph(base, ambiguous, error="unconfirmed submission")
-            assert json_request(f"{platform}/stats") == before_restart
-        print("Restart preserved known and ambiguous task submissions without reposting.", flush=True)
 
 
 if __name__ == "__main__":

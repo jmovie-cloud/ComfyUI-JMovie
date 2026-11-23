@@ -1,7 +1,7 @@
 from comfy_api.latest import ComfyExtension
 
 from .managed import add_routes
-from .nodes import CloudImage, CloudImageUpscale, CloudMusic, CloudVideo, H3Upscale, JMovieImage, ResumeVideo
+from .nodes import CloudImage, CloudVideo, JMovieAudio, JMovieImage, JMovieVideo, ResumeVideo
 
 
 WEB_DIRECTORY = "./web"
@@ -15,7 +15,7 @@ class JMovieCloudExtension(ComfyExtension):
             add_routes(PromptServer.instance)
 
     async def get_node_list(self):
-        return [CloudImage, JMovieImage, CloudVideo, ResumeVideo, CloudMusic, CloudImageUpscale, H3Upscale]
+        return [JMovieImage, JMovieVideo, JMovieAudio, ResumeVideo, CloudImage, CloudVideo]
 
 
 async def comfy_entrypoint():

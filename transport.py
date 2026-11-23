@@ -1,13 +1,9 @@
 """Bounded HTTP for cloud media. Provider bodies and URLs stay out of errors."""
 
-import ipaddress
 import json
 import os
-import socket
 
 import aiohttp
-from aiohttp.abc import AbstractResolver
-from yarl import URL
 
 
 class RequestError(RuntimeError):
@@ -62,45 +58,3 @@ async def request_json(session, method, url, **kwargs):
     except (ValueError, RecursionError):
         pass
     raise RequestError()
-
-
-class PublicResolver(AbstractResolver):
-    def __init__(self):
-        self.resolver = aiohttp.ThreadedResolver()
-
-    async def resolve(self, host, port=0, family=socket.AF_UNSPEC):
-        results = await self.resolver.resolve(host, port, family)
-        if not results or any(not ipaddress.ip_address(item["host"]).is_global for item in results):
-            raise OSError("Non-public download address")
-        return results
-
-    async def close(self):
-        await self.resolver.close()
-
-
-async def download_public(raw_url, limit):
-    try:
-        url = URL(raw_url, encoded=True)
-        host = url.host
-        if url.scheme != "https" or not host or url.user is not None or url.port != 443:
-            raise ValueError()
-        try:
-            address = ipaddress.ip_address(host)
-        except ValueError:
-            address = None
-        if address is not None and not address.is_global:
-            raise ValueError()
-    except (ValueError, TypeError):
-        raise RuntimeError("The provider did not return a public HTTPS result URL.") from None
-
-    resolver = PublicResolver()
-    try:
-        async with aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(resolver=resolver),
-            timeout=aiohttp.ClientTimeout(total=180),
-            cookie_jar=aiohttp.DummyCookieJar(),
-        ) as session:
-            _, data = await request(session, "GET", url, limit=limit)
-            return data
-    finally:
-        await resolver.close()
