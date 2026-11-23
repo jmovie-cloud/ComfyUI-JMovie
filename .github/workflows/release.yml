@@ -2,11 +2,19 @@ name: Publish plugin release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+    paths:
+      - '.github/workflows/release.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: plugin-release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -18,20 +26,41 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Package the tagged source
+        id: package
         shell: bash
         run: |
           set -euo pipefail
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$GITHUB_REF_NAME" == "v$version" ]]
-          archive="ComfyUI-JMovie-$GITHUB_REF_NAME.zip"
-          git archive --format=zip --prefix=ComfyUI-JMovie/ --output="$RUNNER_TEMP/$archive" HEAD
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v$version"
+          ref="refs/tags/$tag"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            [[ "$GITHUB_REF_NAME" == "$tag" ]]
+          elif ! git show-ref --verify --quiet "$ref"; then
+            exit 0
+          fi
+          git merge-base --is-ancestor "$ref" HEAD
+          archive="ComfyUI-JMovie-$tag.zip"
+          git archive --format=zip --prefix=ComfyUI-JMovie/ --output="$RUNNER_TEMP/$archive" "$ref"
           cd "$RUNNER_TEMP"
           sha256sum "$archive" > SHA256SUMS
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
       - name: Publish the GitHub release
+        if: steps.package.outputs.tag != ''
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/ComfyUI-JMovie-$GITHUB_REF_NAME.zip" "$RUNNER_TEMP/SHA256SUMS" \
-            --verify-tag --notes-from-tag --title "JMovie Cloud $GITHUB_REF_NAME"
+          set -euo pipefail
+          archive="$RUNNER_TEMP/ComfyUI-JMovie-$RELEASE_TAG.zip"
+          checksum="$RUNNER_TEMP/SHA256SUMS"
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$draft" == true ]]; then
+              gh release upload "$RELEASE_TAG" "$archive" "$checksum" --clobber
+              gh release edit "$RELEASE_TAG" --draft=false
+            fi
+          else
+            gh release create "$RELEASE_TAG" "$archive" "$checksum" \
+              --verify-tag --notes-from-tag --title "JMovie Cloud $RELEASE_TAG"
+          fi
