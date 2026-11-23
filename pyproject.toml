@@ -1,14 +1,18 @@
 [project]
 name = "jmovie-cloud"
 version = "0.1.0"
-description = "Generate images, video and audio in ComfyUI with your JMovie account."
+description = "Generate images, video, and audio in ComfyUI with Seedream 5.0 Pro, Seedance 2.5, and Seed Audio 1.0. Install jmovie-cloud, open a bundled workflow, and connect your JMovie API wallet for usage-based billing. Results return to your local workflow. Optional BYOK nodes use your own OpenAI GPT Image or MiniMax H3 API key."
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.11.8", "Pillow"]
 
 [project.urls]
 Repository = "https://github.com/jmovie-cloud/ComfyUI-JMovie"
+Documentation = "https://github.com/jmovie-cloud/ComfyUI-JMovie#install"
+"Bug Tracker" = "https://github.com/jmovie-cloud/ComfyUI-JMovie/issues"
 
 [tool.comfy]
 PublisherId = "jmovie-cloud"
-DisplayName = "JMovie Cloud"
+DisplayName = "JMovie Cloud for ComfyUI"
+Icon = "https://raw.githubusercontent.com/jmovie-cloud/ComfyUI-JMovie/main/docs/images/registry-icon.png"
+Banner = "https://raw.githubusercontent.com/jmovie-cloud/ComfyUI-JMovie/main/docs/images/registry-banner.png"
 requires-comfyui = ">=0.36.0"

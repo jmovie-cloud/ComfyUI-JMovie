@@ -1,8 +1,10 @@
 # JMovie Cloud for ComfyUI
 
-Generate images, video, and audio for adult (NSFW) productions in ComfyUI. Connect once with a JMovie API account to use all three nodes. Jobs run in the cloud and are charged to your API wallet based on usage. Supported content depends on the model. [JMovie API pricing](https://api.j-movie.com/pricing)
+Generate images, video, and audio in ComfyUI with Seedream 5.0 Pro, Dreamina Seedance 2.5, and Seed Audio 1.0. Connect a JMovie API wallet to run the three bundled workflows and pay by usage. The nodes support adult (NSFW) productions within each model’s content rules.
 
-![The three example workflows in ComfyUI. JMovie Image connects to Save Image, JMovie Video to Save Video, and JMovie Audio to Preview Audio.](docs/images/jmovie-workflows.webp)
+[Install JMovie Cloud](#install) · [Connect JMovie](#connect-jmovie) · [JMovie API pricing](https://api.j-movie.com/pricing) · [Comfy Registry listing](https://registry.comfy.org/nodes/jmovie-cloud)
+
+![JMovie Cloud for ComfyUI with example image, video, and audio workflows.](docs/images/registry-banner.png)
 
 ## Install
 
@@ -42,6 +44,8 @@ Keep one copy of the plugin in `custom_nodes`. [ComfyUI custom node installation
 
 Open a workflow below on GitHub, select **Download raw file**, and drag the downloaded JSON onto the ComfyUI canvas. The same workflows are available under your installed package in **Templates → Extensions**.
 
+[View the full ComfyUI workflow screenshot](docs/images/jmovie-workflows.webp)
+
 | Node | Default model | Workflow |
 | --- | --- | --- |
 | JMovie Image | Seedream 5.0 Pro | [Generate and save an image](workflows/jmovie-image.json) |
@@ -49,8 +53,6 @@ Open a workflow below on GitHub, select **Download raw file**, and drag the down
 | JMovie Audio | Seed Audio 1.0 | [Generate and preview audio](workflows/jmovie-audio.json) |
 
 JMovie Image accepts an optional reference image. JMovie Video accepts a text prompt, frame anchors, or visual references. JMovie Audio takes a dialogue, narration, or sound prompt. **Target seconds** guides the model, and billing uses the original generated duration reported by the provider. The audio example previews the result. Add **Save Audio (Advanced)** to write an audio file.
-
-Wallet access to MiniMax H3 and GPT Image is pending. Both providers have a direct API key option below.
 
 ## Optional provider API keys
 
@@ -74,6 +76,20 @@ MiniMax H3 supports text prompts, first and last frames, or reference images. Ch
 - Choose **Disconnect** in ComfyUI or open [ComfyUI connections](https://api.j-movie.com/comfy/authorize) to revoke access. Access expires after 24 hours, and restarting ComfyUI requires reconnecting.
 - Keep the same inputs and run number to recover a JMovie wallet or MiniMax H3 request. Change the run number to submit a new task. To look up a video by task ID, use **Advanced → Resume Cloud Video** for JMovie, or fill in **resume_task_id** on **MiniMax H3 (BYOK)**.
 - Results are delivered to ComfyUI as supplier downloads or inline media. Save outputs locally before they expire. An expired download never starts a new paid task.
+
+## Frequently asked questions
+
+### Do I need a JMovie workbench subscription or a provider API key?
+
+The JMovie API wallet covers the Seedream, Seedance, and Seed Audio nodes. Sign in at [JMovie API](https://api.j-movie.com/) and authorize ComfyUI. These nodes require neither a JMovie workbench seat nor your own provider key.
+
+### Can I use OpenAI GPT Image or MiniMax H3 in ComfyUI?
+
+Yes. Use the [optional BYOK nodes](#optional-provider-api-keys) and enter an official OpenAI or MiniMax API key in the node’s settings. For MiniMax, choose the platform that issued the key, International or Mainland China. The provider bills your account directly.
+
+### Where do generated files go?
+
+The nodes return results to the local ComfyUI workflow. Connect a Save node to write a file on the machine running ComfyUI, or pass the output to the next node.
 
 ## Support and development
 
