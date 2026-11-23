@@ -1,6 +1,8 @@
 # JMovie Cloud for ComfyUI
 
-Generate images, video, and audio in ComfyUI with Seedream 5.0 Pro, Dreamina Seedance 2.5, and Seed Audio 1.0. Connect a JMovie API wallet to run the three bundled workflows and pay by usage. The nodes support adult (NSFW) productions within each model’s content rules.
+Uncensored AI for permitted adult (NSFW) image, video, and audio workflows in ComfyUI. Model and provider content rules apply.
+
+Connect a JMovie API wallet and pay by usage for Seedream 5.0 Pro images, Dreamina Seedance 2.5 video, and Seed Audio 1.0 voice and sound. Start with one of the three bundled workflows.
 
 [Install JMovie Cloud](#install) · [Connect JMovie](#connect-jmovie) · [JMovie API pricing](https://api.j-movie.com/pricing) · [Comfy Registry listing](https://registry.comfy.org/nodes/jmovie-cloud)
 
@@ -79,6 +81,10 @@ MiniMax H3 supports text prompts, first and last frames, or reference images. Ch
 
 ## Frequently asked questions
 
+### Which Seedance models can I use?
+
+The ComfyUI video node uses Dreamina Seedance 2.5. The JMovie API also offers Seedance 2.0, 2.0 Fast, 2.0 Mini, and 2.5 Flash. [Seedance 2.0 API models](https://api.j-movie.com/models/seedance-2-0) · [Seedance 2.5 API models](https://api.j-movie.com/models/seedance-2-5)
+
 ### Do I need a JMovie workbench subscription or a provider API key?
 
 The JMovie API wallet covers the Seedream, Seedance, and Seed Audio nodes. Sign in at [JMovie API](https://api.j-movie.com/) and authorize ComfyUI. These nodes require neither a JMovie workbench seat nor your own provider key.
@@ -92,6 +98,8 @@ Yes. Use the [optional BYOK nodes](#optional-provider-api-keys) and enter an off
 The nodes return results to the local ComfyUI workflow. Connect a Save node to write a file on the machine running ComfyUI, or pass the output to the next node.
 
 ## Support and development
+
+Use [JMovie API](https://api.j-movie.com/) for ComfyUI account access, wallet billing, and model pricing. The [JMovie production workspace](https://j-movie.com/) is available for browser-based production.
 
 Include the node name, ComfyUI version, and error message with credentials removed. [Report a problem on GitHub](https://github.com/jmovie-cloud/ComfyUI-JMovie/issues)
 
