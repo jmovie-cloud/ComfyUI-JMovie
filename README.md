@@ -4,7 +4,7 @@ Uncensored AI for permitted adult (NSFW) image, video, and audio workflows in Co
 
 Connect a JMovie API wallet and pay by usage for Seedream 5.0 Pro images, Dreamina Seedance 2.5 video, and Seed Audio 1.0 voice and sound. Start with one of the three bundled workflows.
 
-[Install JMovie Cloud](#install) · [Connect JMovie](#connect-jmovie) · [JMovie API pricing](https://api.j-movie.com/pricing) · [Comfy Registry listing](https://registry.comfy.org/nodes/jmovie-cloud)
+[Install JMovie Cloud](#install) · [Connect JMovie](#connect-jmovie) · [JMovie API pricing](https://api.j-movie.com/pricing) · [Comfy Registry listing](https://registry.comfy.org/nodes/jmovie-cloud) · [Report an issue on GitHub](https://github.com/jmovie-cloud/ComfyUI-JMovie/issues)
 
 ![JMovie Cloud for ComfyUI with example image, video, and audio workflows.](docs/images/registry-banner.png)
 

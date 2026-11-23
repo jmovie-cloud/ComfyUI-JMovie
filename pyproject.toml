@@ -1,7 +1,7 @@
 [project]
 name = "jmovie-cloud"
 version = "0.1.1"
-description = "Uncensored AI for permitted adult (NSFW) image, video, and audio in ComfyUI. Provider content rules apply. • ComfyUI models — Seedream 5.0 Pro, Dreamina Seedance 2.5, and Seed Audio 1.0. • JMovie API catalog — Seedance 2.0, 2.0 Fast, 2.0 Mini, and Seedance 2.5 Flash. • Install jmovie-cloud and connect your JMovie API wallet for usage-based billing. Optional BYOK for OpenAI GPT Image and MiniMax H3."
+description = "Uncensored AI for permitted adult (NSFW) image, video, and audio in ComfyUI. Provider content rules apply. • ComfyUI models — Seedream 5.0 Pro, Dreamina Seedance 2.5, and Seed Audio 1.0. • JMovie API catalog — Seedance 2.0, 2.0 Fast, 2.0 Mini, and Seedance 2.5 Flash. • Install jmovie-cloud and connect your JMovie API wallet for usage-based billing. Optional BYOK for OpenAI GPT Image and MiniMax H3. • Report an issue on GitHub — https://github.com/jmovie-cloud/ComfyUI-JMovie/issues"
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.11.8", "Pillow"]
 
