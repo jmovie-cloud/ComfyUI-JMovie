@@ -14,6 +14,7 @@ import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
+from yarl import URL
 
 import aiohttp
 from PIL import Image
@@ -31,6 +32,9 @@ def launch_comfy(args):
         parsed = urlsplit(str(url))
         if parsed.hostname == "api.openai.com":
             url = f"{platform}/provider/openai{parsed.path}"
+        elif parsed.hostname == "video.supplier.example":
+            assert str(url) == "https://video.supplier.example/video?token=a%2Bb%2Fc"
+            url = URL(f"{platform}/supplier/video?{parsed.query}", encoded=True)
         elif not str(url).startswith((f"{platform}/", f"{comfy}/")):
             raise RuntimeError("Only synthetic local endpoints are permitted in the smoke test.")
         return await original_request(self, method, url, **kwargs)
@@ -220,7 +224,7 @@ def browser_checks(base, platform, video, load_image, fixtures):
         auth.get_by_label("Device code").fill("JMV-2206")
         auth.get_by_role("button", name="Authorize").click()
         expect(auth.get_by_text("Authorized. Return to ComfyUI.")).to_be_visible()
-        expect(dialog.get_by_role("status")).to_have_text("Connected to the JMovie production platform.")
+        expect(dialog.get_by_role("status")).to_have_text("Connected to JMovie API.")
 
         managed_image = image_graph(node("JMovieManagedImage", model="dola-seedream-5-0-pro-260628", prompt="Local managed image",
                                          run_number=0, reference_image=["3", 0]))
@@ -240,6 +244,7 @@ def browser_checks(base, platform, video, load_image, fixtures):
         run_graph(base, audio)
         stats = json_request(f"{platform}/stats")
         assert stats["counts"]["jmovie_submit"] == 3 and stats["cost"] == 12, stats
+        assert stats["counts"]["supplier_video"] == 4, stats
 
         page.request.post(f"{platform}/permissions/revoke")
         run_graph(base, managed_video, error="HTTP 401")
@@ -247,7 +252,7 @@ def browser_checks(base, platform, video, load_image, fixtures):
         page.evaluate("""() => {
             window.app.graph.getNodeById(1).widgets.find(widget => widget.name === 'Connect JMovie').callback();
         }""")
-        expect(dialog.get_by_role("status")).to_contain_text("Connect your JMovie production account")
+        expect(dialog.get_by_role("status")).to_contain_text("Connect your JMovie API account")
         with page.expect_popup() as reconnect:
             dialog.get_by_role("button", name="Connect JMovie").click()
         second = reconnect.value
@@ -257,16 +262,25 @@ def browser_checks(base, platform, video, load_image, fixtures):
         second.get_by_role("button", name="Sign in").click()
         second.get_by_label("Device code").fill("JMV-2206")
         second.get_by_role("button", name="Authorize").click()
-        expect(dialog.get_by_role("status")).to_have_text("Connected to the JMovie production platform.")
+        expect(dialog.get_by_role("status")).to_have_text("Connected to JMovie API.")
         run_graph(base, managed_video)
         assert json_request(f"{platform}/stats")["cost"] == 12
+        h3 = video_graph(node("JMovieManagedVideo", **{**video, "model": "MiniMax-H3", "resolution": "2K"}))
+        hosted_gpt = image_graph(node("JMovieManagedImage", model="gpt-image-2.5-flare",
+                                      prompt="A JMovie wallet image", run_number=0))
+        run_graph(base, h3)
+        run_graph(base, hosted_gpt)
+        assert json_request(f"{platform}/stats")["cost"] == 21
         unknown = video_graph(node("JMovieManagedVideo", **{**video, "prompt": "simulate-unknown"}))
         run_graph(base, unknown, error="Submission unconfirmed")
         accepted = json_request(f"{platform}/stats")
         run_graph(base, unknown)
-        assert json_request(f"{platform}/stats") == accepted
+        assert json_request(f"{platform}/stats")["cost"] == accepted["cost"]
+        page.request.post(f"{platform}/supplier/expire")
+        run_graph(base, managed_video, error="no longer available from the supplier")
+        assert json_request(f"{platform}/stats")["cost"] == accepted["cost"]
         dialog.get_by_role("button", name="Disconnect").click()
-        expect(dialog.get_by_role("status")).to_contain_text("Connect your JMovie production account")
+        expect(dialog.get_by_role("status")).to_contain_text("Connect your JMovie API account")
         run_graph(base, managed_image, error="Use Connect JMovie")
         assert not [error for error in frontend_errors if "JMovie" in error], frontend_errors
 

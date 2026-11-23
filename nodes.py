@@ -61,7 +61,7 @@ class JMovieImage(io.ComfyNode):
             node_id="JMovieManagedImage",
             display_name="JMovie Image",
             category=CATEGORY,
-            description="Generate or edit an image through the authorized JMovie production account.",
+            description="Generate or edit an image through the authorized JMovie API account.",
             inputs=[*image_inputs(MANAGED_IMAGE_MODELS), run_input(advanced=True)],
             outputs=[io.Image.Output(), io.String.Output("task_id")],
         )
@@ -245,7 +245,8 @@ class JMovieAudio(io.ComfyNode):
             description="Generate dialogue, voice or sound with Seed Audio through your JMovie account.",
             inputs=[
                 io.String.Input("prompt", multiline=True),
-                io.Int.Input("duration", display_name="Target seconds", default=10, min=1, max=120),
+                io.Int.Input("duration", display_name="Target seconds", default=10, min=1, max=120,
+                    tooltip="A prompt hint. The JMovie API wallet settles the supplier’s original generated duration."),
                 run_input(advanced=True),
             ],
             outputs=[io.Audio.Output(), io.String.Output("task_id")],
@@ -260,6 +261,6 @@ class JMovieAudio(io.ComfyNode):
         prompt = prompt.strip()
         if not 1 <= len(prompt) <= 2900:
             raise ValueError("Enter an audio prompt between 1 and 2,900 characters.")
-        payload = {"model": "seed-audio-1.0-global", "prompt": prompt, "duration": duration}
+        payload = {"model": "seed-audio-1.0", "prompt": prompt, "duration": duration}
         data, remote_id = await managed_media("audio", payload, MAX_AUDIO_BYTES, run_number)
         return io.NodeOutput(decode_audio(data), remote_id)

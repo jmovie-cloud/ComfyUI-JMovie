@@ -1,4 +1,4 @@
-"""Device authorization and media tasks on the JMovie production-platform contract."""
+"""Device authorization and media tasks on the JMovie API contract."""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -10,14 +10,14 @@ from aiohttp import web
 from comfy.cli_args import args
 from yarl import URL
 
-from .tasks import run_task
+from .delivery import supplier_media
+from .tasks import ResultExpired, run_task
 from .transport import RequestError, client, request, request_json
 
 
 CLIENT_ID = "jmovie-cloud"
-DEFAULT_PLATFORM = "https://j-movie.com"
-LEGACY_SCOPES = frozenset({"image:generate", "video:generate", "tasks:read"})
-SCOPES = LEGACY_SCOPES | {"audio:generate"}
+DEFAULT_PLATFORM = "https://api.j-movie.com"
+SCOPES = frozenset({"image:generate", "video:generate", "audio:generate", "tasks:read"})
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 API = "/api/v1/comfy"
@@ -41,12 +41,11 @@ def platform():
         if (
             not url.host or url.user is not None or url.path != "/" or url.query_string or url.fragment
             or (url.scheme != "https" and not (url.scheme == "http" and url.host in LOOPBACK))
-            or url.host == "api.j-movie.com"
         ):
             raise ValueError()
         return str(url.origin())
     except ValueError:
-        raise RuntimeError("Use a JMovie production-platform HTTPS origin or an HTTP loopback test origin.") from None
+        raise RuntimeError("Use a JMovie API HTTPS origin or an HTTP loopback test origin.") from None
 
 
 @dataclass(frozen=True)
@@ -104,7 +103,6 @@ class Connection:
                 return {"state": "connected"}
             origin = platform()
             if self._device is None or self._device.expires_at <= monotonic():
-                scopes = SCOPES
                 async with client(15) as session:
                     try:
                         status, body = await request_json(
@@ -112,13 +110,6 @@ class Connection:
                             statuses=(200, 400),
                             data={"client_id": CLIENT_ID, "scope": " ".join(sorted(SCOPES))},
                         )
-                        if status == 400 and body.get("error") == "invalid_scope":
-                            scopes = LEGACY_SCOPES
-                            status, body = await request_json(
-                                session, "POST", f"{origin}{API}/oauth/device/code",
-                                statuses=(200, 400),
-                                data={"client_id": CLIENT_ID, "scope": " ".join(sorted(scopes))},
-                            )
                     except RequestError as error:
                         if error.status in {404, 503}:
                             raise RuntimeError("JMovie account connection is currently unavailable. Try again later.") from None
@@ -143,7 +134,7 @@ class Connection:
                 interval = seconds(body, "interval", 60, 5)
                 expires_at = monotonic() + seconds(body, "expires_in", 1800)
                 self._device = Device(
-                    origin, code, user_code, str(verified_url), expires_at, interval, monotonic() + interval, scopes,
+                    origin, code, user_code, str(verified_url), expires_at, interval, monotonic() + interval, SCOPES,
                 )
             return self._device.pending_state()
 
@@ -189,7 +180,7 @@ class Connection:
                 not isinstance(token, str) or not 1 <= len(token) <= 8192
                 or not token.isascii() or not token.isprintable() or " " in token
                 or not isinstance(account, str) or not 1 <= len(account) <= 160
-                or (granted_scopes != device.scopes and granted_scopes != LEGACY_SCOPES)
+                or granted_scopes != device.scopes
                 or str(body.get("token_type")).lower() != "bearer"
             ):
                 raise RuntimeError("JMovie did not return a scoped plugin grant.")
@@ -257,8 +248,6 @@ async def managed_media(kind, payload, limit, run_number=0, resume_id=""):
     grant = connection.current()
     if grant is None:
         raise RuntimeError("Use Connect JMovie to authorize this ComfyUI server.")
-    if kind == "audio" and "audio:generate" not in grant.scopes:
-        raise RuntimeError("This JMovie connection supports images and video. Audio requires a platform with audio enabled.")
     base = f"{grant.origin}{API}/tasks"
     async with client(120) as session:
         async def authorized(fetch, method, url, **kwargs):
@@ -283,10 +272,22 @@ async def managed_media(kind, payload, limit, run_number=0, resume_id=""):
             return body.get("status"), task
 
         async def download(task):
-            _, media = await authorized(request, "GET", f"{base}/{task}/result", limit=limit)
-            return media
+            try:
+                _, result = await authorized(
+                    request_json, "GET", f"{base}/{task}/result", limit=4 * ((limit + 2) // 3) + 256,
+                )
+            except RequestError as error:
+                if error.status == 410:
+                    raise ResultExpired() from None
+                raise
+            return await supplier_media(result, limit)
 
-        return await run_task(
-            scope=(grant.origin, grant.account_id, kind), payload=payload, run_number=run_number,
-            resume_id=resume_id, submit=submit, query=query, download=download, idempotent=True,
-        )
+        try:
+            return await run_task(
+                scope=(grant.origin, grant.account_id, kind), payload=payload, run_number=run_number,
+                resume_id=resume_id, submit=submit, query=query, download=download, idempotent=True,
+            )
+        except RequestError as error:
+            if error.status == 402:
+                raise RuntimeError("The JMovie API wallet has insufficient available balance. Top up at api.j-movie.com and queue the same run.") from None
+            raise

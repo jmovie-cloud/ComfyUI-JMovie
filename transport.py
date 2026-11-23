@@ -22,10 +22,11 @@ def api_key(name):
     return key
 
 
-def client(timeout=45):
+def client(timeout=45, *, connector=None):
     return aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=timeout),
         cookie_jar=aiohttp.DummyCookieJar(),
+        connector=connector,
     )
 
 

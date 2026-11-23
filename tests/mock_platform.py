@@ -31,6 +31,7 @@ class MockPlatform:
         self.device = None
         self.grant = None
         self.cost = 0
+        self.expire_video = False
         self.counts = Counter()
         self.routes = web.RouteTableDef()
         self.routes.post(API + "/oauth/device/code")(self.device_code)
@@ -45,6 +46,8 @@ class MockPlatform:
         self.routes.post("/permissions/revoke")(self.browser_revoke)
         self.routes.route("*", "/provider/{provider}/{path:.*}")(self.provider)
         self.routes.get("/stats")(self.stats)
+        self.routes.get("/supplier/video")(self.supplier_video)
+        self.routes.post("/supplier/expire")(self.expire_supplier_video)
 
     async def device_code(self, request):
         form = await request.post()
@@ -81,7 +84,7 @@ class MockPlatform:
                 raise web.HTTPUnauthorized()
             response = web.Response(text="""
                 <!doctype html><title>JMovie local consent</title><h1>Authorize JMovie Cloud</h1>
-                <p>Generate images, video and audio, and read plugin tasks on the test production account.</p>
+                <p>Generate images, video and audio, and read plugin tasks on the test API account.</p>
                 <form method="post"><label>Device code <input name="user_code"></label>
                 <button>Authorize</button></form>
             """, content_type="text/html")
@@ -122,8 +125,13 @@ class MockPlatform:
         payload = await request.json()
         kind = payload.get("kind")
         assert kind in {"image", "video", "audio"} and payload["prompt"]
+        if payload["model"] == "MiniMax-H3":
+            assert kind == "video" and payload["resolution"] in {"768P", "2K"}
+            assert 4 <= payload["duration"] <= 15
+        if payload["model"] == "gpt-image-2.5-flare":
+            assert kind == "image" and "reference_image" not in payload
         if kind == "audio":
-            assert payload["model"] == "seed-audio-1.0-global" and 1 <= payload["duration"] <= 120
+            assert payload["model"] == "seed-audio-1.0" and 1 <= payload["duration"] <= 120
         key = request.headers["Idempotency-Key"]
         if key not in self.idempotency:
             self.idempotency[key] = self.create_task("jmovie", kind)
@@ -150,11 +158,22 @@ class MockPlatform:
         self.require_grant(request)
         task = self.lookup(request.match_info["task"], "jmovie")
         assert task["polls"] >= 2
-        data, mime = {
-            "image": (self.image, "image/png"), "video": (self.video, "video/mp4"),
-            "audio": (self.audio, "audio/wav"),
-        }[task["kind"]]
-        return web.Response(body=data, content_type=mime)
+        if task["kind"] == "video":
+            return web.json_response({"url": "https://video.supplier.example/video?token=a%2Bb%2Fc"})
+        data = {"image": self.image, "audio": self.audio}[task["kind"]]
+        return web.json_response({"base64": base64.b64encode(data).decode()})
+
+    async def supplier_video(self, request):
+        assert "Authorization" not in request.headers and "Cookie" not in request.headers
+        assert request.raw_path.endswith("?token=a%2Bb%2Fc")
+        if self.expire_video:
+            raise web.HTTPGone()
+        self.counts["supplier_video"] += 1
+        return web.Response(body=self.video, content_type="video/mp4")
+
+    async def expire_supplier_video(self, request):
+        self.expire_video = True
+        return web.Response(status=204)
 
     async def stats(self, _request):
         return web.json_response({"counts": dict(self.counts), "cost": self.cost, "tasks": list(self.tasks)})

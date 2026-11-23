@@ -21,6 +21,10 @@ POLL_SECONDS = 10
 WAIT_SECONDS = 15 * 60
 
 
+class ResultExpired(RuntimeError):
+    pass
+
+
 def task_id(value):
     if not isinstance(value, str) or not TASK_ID.fullmatch(value):
         raise ValueError("Invalid cloud task ID.")
@@ -107,8 +111,18 @@ async def run_task(*, scope, payload, run_number, resume_id, submit, query, down
                     if status == "succeeded":
                         try:
                             return await download(result), remote_id
+                        except ResultExpired:
+                            raise RuntimeError(
+                                f"Task {remote_id} result is no longer available from the supplier. "
+                                "Use your saved file or change Run number to start a new paid task."
+                            ) from None
                         except RuntimeError:
                             raise RuntimeError(f"Task {remote_id} succeeded but its result could not be downloaded.") from None
+                    if status == "expired":
+                        raise RuntimeError(
+                            f"Task {remote_id} result has expired. "
+                            "Use your saved file or change Run number to start a new paid task."
+                        )
                     if status in TERMINAL:
                         raise RuntimeError(f"Task {remote_id} ended with status {status}.")
                     if status not in PENDING:

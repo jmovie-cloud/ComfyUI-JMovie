@@ -29,7 +29,7 @@ function showConnection() {
     dialog.setAttribute("aria-labelledby", "jmovie-cloud-title");
     const title = document.createElement("h2");
     title.id = "jmovie-cloud-title";
-    title.textContent = "JMovie account";
+    title.textContent = "JMovie API account";
     const message = document.createElement("p");
     message.className = "jmovie-connect__status";
     message.setAttribute("role", "status");
@@ -77,7 +77,7 @@ function showConnection() {
         disconnect.textContent = state.state === "pending" ? "Cancel request" : "Disconnect";
         if (state.state === "pending") {
             const pendingMessage = code
-                ? "Enter this device code on JMovie, then return here."
+                ? "Enter this device code on the JMovie API authorization page, then return here."
                 : "Authorization is pending. Select Connect JMovie to see the code again.";
             if (message.textContent !== pendingMessage) message.textContent = pendingMessage;
             timer = setTimeout(() => change("poll"), 2500);
@@ -85,8 +85,8 @@ function showConnection() {
         }
         link.removeAttribute("href");
         const messages = {
-            connected: "Connected to the JMovie production platform.",
-            disconnected: "Connect your JMovie production account to run managed nodes.",
+            connected: "Connected to JMovie API.",
+            disconnected: "Connect your JMovie API account to run image, video, and audio nodes.",
             denied: "Authorization was declined.",
             expired: "Authorization expired. Start a new connection.",
         };
