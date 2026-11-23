@@ -40,16 +40,23 @@ Open a workflow below on GitHub, select **Download raw file**, and drag the down
 
 JMovie Image accepts an optional reference image. JMovie Video accepts a text prompt, frame anchors, or visual references. JMovie Audio takes a dialogue, narration, or sound prompt. **Target seconds** guides the model, and billing uses the original generated duration reported by the provider. The audio example previews the result. Add **Save Audio (Advanced)** to write an audio file.
 
-MiniMax H3 and JMovie-hosted GPT Image are currently unavailable. For GPT Image with your own OpenAI key, use the optional node below.
+Wallet access to MiniMax H3 and GPT Image is pending. Both providers have a direct API key option below.
 
-## Optional GPT Image with your own OpenAI API key
+## Optional provider API keys
 
-**JMovie Cloud → Advanced → BYOK → GPT Image (OpenAI BYOK)** is the only node that accepts your own provider key. Set `OPENAI_API_KEY` in the ComfyUI server environment and restart ComfyUI. The node requests `api.openai.com` directly and OpenAI bills your account. [GPT Image workflow](workflows/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation)
+Set your provider key in the ComfyUI server environment and restart ComfyUI. Open **JMovie Cloud → Advanced → BYOK**. Each node calls its provider directly and usage is billed to your provider account.
+
+| Node | Environment variable | Workflow and setup |
+| --- | --- | --- |
+| MiniMax H3 (BYOK) | `MINIMAX_API_KEY` | [MiniMax H3 workflow](workflows/byok/minimax-h3.json) · [MiniMax API keys](https://platform.minimax.io/console/keys) · [MiniMax video API](https://platform.minimax.io/docs/api-reference/video-generation-v2-create) |
+| GPT Image (OpenAI BYOK) | `OPENAI_API_KEY` | [GPT Image workflow](workflows/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation) |
+
+MiniMax H3 supports text prompts, first and last frames, or reference images. Choose 4–15 seconds at 768P or 2K. GPT Image supports text-to-image and reference-image edits, including GPT Image 2.6 Flare and Sunburst.
 
 ## Manage a connection or recover a task
 
 - Choose **Disconnect** in ComfyUI or open [ComfyUI connections](https://api.j-movie.com/comfy/authorize) to revoke access. Access expires after 24 hours, and restarting ComfyUI requires reconnecting.
-- Keep the same inputs and run number to recover a managed request. Change the run number to submit a new task. **Advanced → Resume Cloud Video** can retrieve a JMovie video by task ID while its supplier link is valid.
+- Keep the same inputs and run number to recover a JMovie wallet or MiniMax H3 request. Change the run number to submit a new task. To look up a video by task ID, use **Advanced → Resume Cloud Video** for JMovie, or fill in **resume_task_id** on **MiniMax H3 (BYOK)**.
 - Results are delivered to ComfyUI as supplier downloads or inline media. Save outputs locally before they expire. An expired download never starts a new paid task.
 
 ## Support and development

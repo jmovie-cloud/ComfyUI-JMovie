@@ -2,14 +2,15 @@ from comfy_api.latest import io
 
 from .managed import managed_media
 from .media import decode_audio, decode_image, decode_video, png_image
-from .providers import MAX_IMAGE_BYTES, OPENAI_MODELS, SEEDREAM_MODELS, generate_image
+from .minimax import generate_h3
+from .providers import HOSTED_GPT_IMAGE_MODELS, MAX_IMAGE_BYTES, OPENAI_MODELS, SEEDREAM_MODELS, generate_image
 from .video import (
-    H3, MAX_INLINE_BYTES, MAX_VIDEO_BYTES, VIDEO_MODELS,
+    H3, MAX_INLINE_BYTES, MAX_VIDEO_BYTES, VIDEO_MODELS, VIDEO_RATIOS, VIDEO_RESOLUTIONS,
     inline_media, video_settings,
 )
 
 
-MANAGED_IMAGE_MODELS = (*SEEDREAM_MODELS, *OPENAI_MODELS)
+MANAGED_IMAGE_MODELS = (*SEEDREAM_MODELS, *HOSTED_GPT_IMAGE_MODELS)
 MAX_AUDIO_BYTES = 32 * 1024 * 1024
 CATEGORY = "JMovie Cloud"
 ADVANCED_CATEGORY = f"{CATEGORY}/Advanced"
@@ -168,6 +169,48 @@ class JMovieVideo(io.ComfyNode):
         return io.NodeOutput(decode_video(data), remote_id)
 
 
+class MiniMaxH3(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="JMovieMiniMaxH3",
+            display_name="MiniMax H3 (BYOK)",
+            category=BYOK_CATEGORY,
+            description="Generate video with a MiniMax API key from the ComfyUI server environment.",
+            inputs=[
+                io.String.Input("prompt", multiline=True),
+                io.Int.Input("duration", default=5, min=4, max=15),
+                io.Combo.Input("ratio", options=list(VIDEO_RATIOS[H3])),
+                io.Combo.Input("resolution", options=list(VIDEO_RESOLUTIONS[H3])),
+                io.Boolean.Input("generate_audio", default=True),
+                run_input(advanced=True),
+                *video_reference_inputs(),
+                io.String.Input("resume_task_id", optional=True, advanced=True, default="",
+                    tooltip="Retrieve an existing MiniMax H3 task instead of starting a generation."),
+            ],
+            outputs=video_outputs(),
+        )
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        return float("nan")
+
+    @classmethod
+    async def execute(
+        cls, prompt, duration, ratio, resolution, generate_audio, run_number,
+        first_frame=None, last_frame=None, reference_images=None, resume_task_id="",
+    ):
+        resume_id = resume_task_id.strip()
+        if resume_id:
+            data, remote_id = await generate_h3({}, resume_id=resume_id)
+        else:
+            settings = video_request(
+                H3, prompt, duration, ratio, resolution, generate_audio, first_frame, last_frame, reference_images,
+            )
+            data, remote_id = await generate_h3(settings, run_number)
+        return io.NodeOutput(decode_video(data), remote_id)
+
+
 class CloudVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -197,7 +240,7 @@ class CloudVideo(io.ComfyNode):
         first_frame=None, last_frame=None, reference_images=None,
     ):
         if connection != JMOVIE:
-            raise ValueError("Choose the JMovie connection for video. OpenAI BYOK is available for GPT Image.")
+            raise ValueError("Choose the JMovie connection or replace this legacy node with MiniMax H3 (BYOK).")
         settings = video_request(
             model, prompt, duration, ratio, resolution, generate_audio, first_frame, last_frame, reference_images,
         )

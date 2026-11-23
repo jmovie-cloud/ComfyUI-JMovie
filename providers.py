@@ -5,7 +5,8 @@ import aiohttp
 from .transport import RequestError, api_key, client, request_json
 
 
-OPENAI_MODELS = ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst")
+HOSTED_GPT_IMAGE_MODELS = ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst")
+OPENAI_MODELS = (*HOSTED_GPT_IMAGE_MODELS, "gpt-image-2.6-flare", "gpt-image-2.6-sunburst")
 SEEDREAM_MODELS = ("dola-seedream-5-0-pro-260628",)
 MAX_IMAGE_BYTES = 40 * 1024 * 1024
 

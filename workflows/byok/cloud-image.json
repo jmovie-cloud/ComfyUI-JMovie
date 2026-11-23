@@ -13,7 +13,7 @@
       "inputs": [{"name": "reference_image", "type": "IMAGE", "link": null}],
       "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [1], "slot_index": 0}],
       "properties": {"Node name for S&R": "JMovieCloudImage"},
-      "widgets_values": ["gpt-image-2", "A blue ceramic cup on a wooden table, soft daylight."]
+      "widgets_values": ["gpt-image-2.6-flare", "A blue ceramic cup on a wooden table, soft daylight."]
     },
     {
       "id": 2,

@@ -46,7 +46,7 @@ class MockPlatform:
         self.routes.post("/permissions/revoke")(self.browser_revoke)
         self.routes.route("*", "/provider/{provider}/{path:.*}")(self.provider)
         self.routes.get("/stats")(self.stats)
-        self.routes.get("/supplier/video")(self.supplier_video)
+        self.routes.get("/supplier/{kind:video|minimax}")(self.supplier_video)
         self.routes.post("/supplier/expire")(self.expire_supplier_video)
 
     async def device_code(self, request):
@@ -115,7 +115,8 @@ class MockPlatform:
         return web.json_response({"active": True})
 
     def create_task(self, service, kind):
-        identifier = f"{service}-{len(self.tasks) + 1}"
+        number = len(self.tasks) + 1
+        identifier = str(number) if service == "minimax" else f"{service}-{number}"
         self.tasks[identifier] = {"service": service, "kind": kind, "polls": 0}
         self.counts[f"{service}_submit"] += 1
         return identifier
@@ -168,7 +169,7 @@ class MockPlatform:
         assert request.raw_path.endswith("?token=a%2Bb%2Fc")
         if self.expire_video:
             raise web.HTTPGone()
-        self.counts["supplier_video"] += 1
+        self.counts[f"supplier_{request.match_info['kind']}"] += 1
         return web.Response(body=self.video, content_type="video/mp4")
 
     async def expire_supplier_video(self, request):
@@ -179,6 +180,8 @@ class MockPlatform:
         return web.json_response({"counts": dict(self.counts), "cost": self.cost, "tasks": list(self.tasks)})
 
     async def provider(self, request):
+        if request.match_info["provider"] == "minimax":
+            return await self.minimax(request)
         assert request.match_info["provider"] == "openai"
         assert request.headers["Authorization"] == "Bearer mock-openai"
         path = request.match_info["path"]
@@ -191,6 +194,40 @@ class MockPlatform:
         assert form["model"].startswith("gpt-image-") and form["prompt"]
         self.counts["openai_image"] += 1
         return web.json_response({"data": [{"b64_json": base64.b64encode(self.image).decode()}]})
+
+    async def minimax(self, request):
+        assert request.headers["Authorization"] == "Bearer mock-minimax"
+        path = request.match_info["path"]
+        if request.method == "POST":
+            assert path == "v2/video_generation"
+            payload = await request.json()
+            assert payload["model"] == "MiniMax-H3" and payload["resolution"] in {"768P", "2K"}
+            assert 4 <= payload["duration"] <= 15 and isinstance(payload["generate_audio"], bool)
+            text, *images = payload["content"]
+            assert text["type"] == "text" and text["text"]
+            for image in images:
+                assert image["type"] == "image_url"
+                assert image["image_url"]["url"].startswith("data:image/png;base64,")
+            if text["text"] == "First frame only":
+                assert [image["role"] for image in images] == ["first_frame"] and payload["ratio"] == "adaptive"
+            elif text["text"] == "Use a reference image":
+                assert [image["role"] for image in images] == ["reference_image"] and payload["ratio"] == "16:9"
+            else:
+                assert not images and payload["ratio"] == "16:9"
+            identifier = self.create_task("minimax", "video")
+            if text["text"] == "simulate-unknown":
+                raise web.HTTPServiceUnavailable()
+            return web.json_response({"task_id": identifier})
+
+        assert request.method == "GET" and path.startswith("v2/query/video_generation/")
+        identifier = path.rsplit("/", 1)[-1]
+        task = self.lookup(identifier, "minimax")
+        task["polls"] += 1
+        response = {"id": identifier, "model": "MiniMax-H3", "status": "queued"}
+        if task["polls"] >= 2:
+            response["status"] = "succeeded"
+            response["content"] = {"url": "https://video.supplier.example/minimax?token=a%2Bb%2Fc"}
+        return web.json_response({"task": response})
 
 
 if __name__ == "__main__":

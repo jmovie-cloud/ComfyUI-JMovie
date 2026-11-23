@@ -32,16 +32,18 @@ def launch_comfy(args):
         parsed = urlsplit(str(url))
         if parsed.hostname == "api.openai.com":
             url = f"{platform}/provider/openai{parsed.path}"
+        elif parsed.hostname == "api.minimax.io":
+            url = f"{platform}/provider/minimax{parsed.path}"
         elif parsed.hostname == "video.supplier.example":
-            assert str(url) == "https://video.supplier.example/video?token=a%2Bb%2Fc"
-            url = URL(f"{platform}/supplier/video?{parsed.query}", encoded=True)
+            assert parsed.path in {"/video", "/minimax"} and parsed.query == "token=a%2Bb%2Fc"
+            url = URL(f"{platform}/supplier{parsed.path}?{parsed.query}", encoded=True)
         elif not str(url).startswith((f"{platform}/", f"{comfy}/")):
             raise RuntimeError("Only synthetic local endpoints are permitted in the smoke test.")
         return await original_request(self, method, url, **kwargs)
 
     aiohttp.ClientSession._request = request
     os.environ.update({
-        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai",
+        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai", "MINIMAX_API_KEY": "mock-minimax",
     })
     entry = args.comfy / "main.py"
     sys.path.insert(0, str(args.comfy))
@@ -170,14 +172,18 @@ def browser_checks(base, platform, video, load_image, fixtures):
         page.wait_for_function("!!window.app?.graph")
         page.wait_for_function("!!window.LiteGraph?.registered_node_types?.JMovieManagedVideo")
 
-        workflow = json.loads((ROOT / "workflows/byok/cloud-image.json").read_text())
-        graph = page.evaluate("""async workflow => {
-            await window.app.handleFile(new File([JSON.stringify(workflow)], 'cloud-image.json', {type: 'application/json'}));
-            return (await window.app.graphToPrompt()).output;
-        }""", workflow)
-        assert graph["1"]["class_type"] == "JMovieCloudImage" and graph["2"]["inputs"]["images"] == ["1", 0]
-        run_graph(base, graph)
-        print("Browser imported and executed the advanced BYOK image example.", flush=True)
+        for filename, generator, input_slot in [
+            ("cloud-image.json", "JMovieCloudImage", "images"),
+            ("minimax-h3.json", "JMovieMiniMaxH3", "video"),
+        ]:
+            workflow = json.loads((ROOT / "workflows" / "byok" / filename).read_text())
+            graph = page.evaluate("""async ([workflow, filename]) => {
+                await window.app.handleFile(new File([JSON.stringify(workflow)], filename, {type: 'application/json'}));
+                return (await window.app.graphToPrompt()).output;
+            }""", [workflow, filename])
+            assert graph["1"]["class_type"] == generator and graph["2"]["inputs"][input_slot] == ["1", 0]
+            run_graph(base, graph)
+        print("Browser imported and executed both BYOK workflows.", flush=True)
 
         for path in sorted((ROOT / "workflows").glob("jmovie-*.json")):
             workflow = json_request(f"{base}/api/workflow_templates/ComfyUI-JMovie/{path.name}")
@@ -290,6 +296,32 @@ def browser_checks(base, platform, video, load_image, fixtures):
         print("Browser signed in, authorized, ran managed tasks, handled revocation and reconnected without a second charge.", flush=True)
 
 
+def minimax_checks(base, platform, load_image):
+    settings = dict(prompt="First frame only", duration=5, ratio="16:9", resolution="768P",
+                    generate_audio=True, run_number=0, first_frame=["3", 0])
+    graph = video_graph(node("JMovieMiniMaxH3", **settings), {"3": load_image})
+    run_graph(base, graph)
+    run_graph(base, graph)
+    stats = json_request(f"{platform}/stats")
+    assert stats["counts"]["minimax_submit"] == 1 and stats["counts"]["supplier_minimax"] == 2, stats
+
+    reference = {**settings, "prompt": "Use a reference image", "reference_images": settings["first_frame"]}
+    del reference["first_frame"]
+    run_graph(base, video_graph(node("JMovieMiniMaxH3", **reference), {"3": load_image}))
+
+    plain = {**settings, "prompt": "simulate-unknown", "generate_audio": False}
+    del plain["first_frame"]
+    uncertain = video_graph(node("JMovieMiniMaxH3", **plain))
+    run_graph(base, uncertain, error="Submission unconfirmed")
+    run_graph(base, uncertain, error="pending or unconfirmed submission")
+    stats = json_request(f"{platform}/stats")
+    assert stats["counts"]["minimax_submit"] == 3 and stats["cost"] == 0, stats
+    resume = {**plain, "prompt": "", "resume_task_id": stats["tasks"][-1]}
+    run_graph(base, video_graph(node("JMovieMiniMaxH3", **resume)))
+    assert json_request(f"{platform}/stats")["counts"]["minimax_submit"] == 3
+    print("MiniMax H3 used its official endpoint and recovered tasks without resubmitting.", flush=True)
+
+
 def smoke(args):
     qa = ROOT / ".qa"
     qa.mkdir(exist_ok=True)
@@ -311,19 +343,21 @@ def smoke(args):
         with process(comfy_cmd, fixtures / "comfy.log") as comfy:
             info = ready(f"{base}/object_info", comfy)
             installed = {key for key in info if key.startswith("JMovie")}
-            assert len(installed) == 6, installed
+            assert len(installed) == 7, installed
             primary = {key for key in installed if info[key]["category"] == "JMovie Cloud"}
             assert primary == {"JMovieManagedImage", "JMovieManagedVideo", "JMovieManagedAudio"}, primary
             byok = {key for key in installed if info[key]["category"].endswith("/BYOK")}
-            assert byok == {"JMovieCloudImage"}, byok
+            assert byok == {"JMovieCloudImage", "JMovieMiniMaxH3"}, byok
             assert "connection" not in info["JMovieManagedVideo"]["input"]["required"]
-            for model in ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"):
+            for model in ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst",
+                          "gpt-image-2.6-flare", "gpt-image-2.6-sunburst"):
                 run_graph(base, image_graph(node("JMovieCloudImage", model=model, prompt="Ceramic cup")))
-            edit = image_graph(node("JMovieCloudImage", model="gpt-image-2.5-flare", prompt="Glaze the cup",
+            edit = image_graph(node("JMovieCloudImage", model="gpt-image-2.6-flare", prompt="Glaze the cup",
                                      reference_image=["3", 0]))
             edit["3"] = load_image
             run_graph(base, edit)
             print("GPT Image BYOK used the official OpenAI endpoint for generation and editing.", flush=True)
+            minimax_checks(base, platform, load_image)
             browser_checks(base, platform, video, load_image, fixtures)
 
 
