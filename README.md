@@ -8,6 +8,12 @@ Generate images, video, and audio for adult (NSFW) productions in ComfyUI. Conne
 
 Requires ComfyUI 0.36.0 or later and Python 3.11 or later. Run ComfyUI as a local, single-user server on localhost.
 
+Install `jmovie-cloud` from [Comfy Registry](https://registry.comfy.org/nodes/jmovie-cloud) with Comfy CLI, then restart ComfyUI.
+
+```sh
+comfy node registry-install jmovie-cloud
+```
+
 Download the `ComfyUI-JMovie-v*.zip` asset from [GitHub Releases](https://github.com/jmovie-cloud/ComfyUI-JMovie/releases). Extract the `ComfyUI-JMovie` folder into `ComfyUI/custom_nodes`, then restart ComfyUI.
 
 For a Git checkout, run these commands from your ComfyUI folder and restart:
@@ -21,7 +27,7 @@ Keep one copy of the plugin in `custom_nodes`. [ComfyUI custom node installation
 
 ## Connect JMovie
 
-1. In ComfyUI, open **Templates**, choose **ComfyUI-JMovie** under **Extensions**, and select **jmovie-image**. You can also add a node from **Node Library → JMovie Cloud** or drag an [example workflow JSON](#example-workflows) onto the canvas.
+1. In ComfyUI, open **Templates → Extensions** and select **jmovie-image** under **jmovie-cloud** for a Registry install or **ComfyUI-JMovie** for a GitHub install. You can also add a node from **Node Library → JMovie Cloud** or drag an [example workflow JSON](#example-workflows) onto the canvas.
 2. Select **Connect JMovie** on the node, then select **Connect JMovie** in the dialog. When the browser tab opens, return to ComfyUI and select **Copy code**. If you closed the tab, select **Open authorization page**.
 
    ![ComfyUI connection dialog with a sample device code, the Copy code button, and the Open authorization page link.](docs/images/comfyui-connect.webp)
@@ -34,7 +40,7 @@ Keep one copy of the plugin in `custom_nodes`. [ComfyUI custom node installation
 
 ## Example workflows
 
-Open a workflow below on GitHub, select **Download raw file**, and drag the downloaded JSON onto the ComfyUI canvas. The same workflows are available under **Templates → ComfyUI-JMovie**.
+Open a workflow below on GitHub, select **Download raw file**, and drag the downloaded JSON onto the ComfyUI canvas. The same workflows are available under your installed package in **Templates → Extensions**.
 
 | Node | Default model | Workflow |
 | --- | --- | --- |
