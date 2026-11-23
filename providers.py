@@ -2,7 +2,8 @@ import base64
 
 import aiohttp
 
-from .transport import RequestError, api_key, client, request_json
+from .credentials import api_key
+from .transport import RequestError, client, request_json
 
 
 HOSTED_GPT_IMAGE_MODELS = ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst")
@@ -28,7 +29,7 @@ async def generate_image(model, prompt, reference=None):
         raise ValueError("Reference image exceeds 30 MB after PNG encoding.")
     url, payload = image_request(model, prompt, reference)
 
-    key = api_key("OPENAI_API_KEY")
+    key, _ = api_key("openai")
     body = {"data": payload} if isinstance(payload, aiohttp.FormData) else {"json": payload}
     try:
         async with client(300) as session:

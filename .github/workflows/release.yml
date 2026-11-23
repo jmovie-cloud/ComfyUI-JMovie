@@ -1,0 +1,37 @@
+name: Publish plugin release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package the tagged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$GITHUB_REF_NAME" == "v$version" ]]
+          archive="ComfyUI-JMovie-$GITHUB_REF_NAME.zip"
+          git archive --format=zip --prefix=ComfyUI-JMovie/ --output="$RUNNER_TEMP/$archive" HEAD
+          cd "$RUNNER_TEMP"
+          sha256sum "$archive" > SHA256SUMS
+      - name: Publish the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/ComfyUI-JMovie-$GITHUB_REF_NAME.zip" "$RUNNER_TEMP/SHA256SUMS" \
+            --verify-tag --notes-from-tag --title "JMovie Cloud $GITHUB_REF_NAME"

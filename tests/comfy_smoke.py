@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,8 @@ def launch_comfy(args):
             url = f"{platform}/provider/openai{parsed.path}"
         elif parsed.hostname == "api.minimax.io":
             url = f"{platform}/provider/minimax{parsed.path}"
+        elif parsed.hostname == "api.minimax.cn":
+            url = f"{platform}/provider/minimax-cn{parsed.path}"
         elif parsed.hostname == "video.supplier.example":
             assert parsed.path in {"/video", "/minimax"} and parsed.query == "token=a%2Bb%2Fc"
             url = URL(f"{platform}/supplier{parsed.path}?{parsed.query}", encoded=True)
@@ -43,7 +46,8 @@ def launch_comfy(args):
 
     aiohttp.ClientSession._request = request
     os.environ.update({
-        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai", "MINIMAX_API_KEY": "mock-minimax",
+        "JMOVIE_CLOUD_BASE_URL": platform, "OPENAI_API_KEY": "mock-openai",
+        "MINIMAX_API_KEY": "mock-minimax", "MINIMAX_API_REGION": "global",
     })
     entry = args.comfy / "main.py"
     sys.path.insert(0, str(args.comfy))
@@ -172,9 +176,9 @@ def browser_checks(base, platform, video, load_image, fixtures):
         page.wait_for_function("!!window.app?.graph")
         page.wait_for_function("!!window.LiteGraph?.registered_node_types?.JMovieManagedVideo")
 
-        for filename, generator, input_slot in [
-            ("cloud-image.json", "JMovieCloudImage", "images"),
-            ("minimax-h3.json", "JMovieMiniMaxH3", "video"),
+        for filename, generator, input_slot, provider, name, keys_url in [
+            ("cloud-image.json", "JMovieCloudImage", "images", "openai", "OpenAI", "https://platform.openai.com/api-keys"),
+            ("minimax-h3.json", "JMovieMiniMaxH3", "video", "minimax", "MiniMax", "https://platform.minimax.io/console/keys"),
         ]:
             workflow = json.loads((ROOT / "workflows" / "byok" / filename).read_text())
             graph = page.evaluate("""async ([workflow, filename]) => {
@@ -183,7 +187,77 @@ def browser_checks(base, platform, video, load_image, fixtures):
             }""", [workflow, filename])
             assert graph["1"]["class_type"] == generator and graph["2"]["inputs"][input_slot] == ["1", 0]
             run_graph(base, graph)
-        print("Browser imported and executed both BYOK workflows.", flush=True)
+
+            def open_settings():
+                page.evaluate("""label => {
+                    window.app.graph.getNodeById(1).widgets.find(widget => widget.name === label).callback();
+                }""", f"Set {name} API key")
+                return page.get_by_role("dialog", name=f"{name} API key")
+
+            endpoint = f"{base}/jmovie-cloud/keys/{provider}"
+            try:
+                json_request(f"{endpoint}/save", {"key": "foreign-key"}, {"Origin": "https://wrong.invalid"})
+            except HTTPError as error:
+                assert error.code == 403
+            else:
+                raise AssertionError("A cross-origin request could save an API key.")
+            settings = open_settings()
+            key_link = settings.get_by_role("link")
+            expect(key_link).to_have_attribute("href", keys_url)
+            key_input = settings.get_by_label("API key", exact=True)
+            expect(key_input).to_have_attribute("type", "password")
+            expect(settings.get_by_role("status")).to_contain_text("startup environment")
+            save = settings.get_by_role("button", name="Save API key", exact=True)
+            expect(save).to_be_disabled()
+            key_input.fill("invalid key with spaces")
+            save.click()
+            expect(settings.get_by_role("status")).to_have_text("Paste a complete API key without spaces.")
+            source = {"source": "saved"}
+            service = provider
+            if provider == "minimax":
+                region = settings.get_by_label("MiniMax platform")
+                expect(region).to_have_value("global")
+                region.select_option("cn")
+                expect(key_input).to_have_value("")
+                expect(save).to_be_disabled()
+                expect(key_link).to_have_attribute("href", "https://platform.minimax.cn/console/keys")
+                expect(settings.get_by_role("status")).to_contain_text("International key stays active")
+                source["region"] = "cn"
+                service = "minimax-cn"
+            dummy_key = f"mock-{service}-saved"
+            key_input.fill(dummy_key)
+            save.click()
+            expect(settings.get_by_role("status")).to_contain_text("API key saved.")
+            expect(key_input).to_have_value("")
+            expect(save).not_to_be_visible()
+            assert json_request(f"{endpoint}/status", {}, {"Origin": base}) == source
+            key_path = fixtures / "user" / "jmovie-cloud" / "keys" / f"{provider}.key"
+            if os.name == "posix":
+                assert stat.S_IMODE(key_path.stat().st_mode) == 0o600
+            saved_graph = page.evaluate("async () => (await window.app.graphToPrompt()).output")
+            serialized = page.evaluate("() => JSON.stringify(window.app.graph.serialize())")
+            assert saved_graph == graph and dummy_key not in serialized
+            settings.get_by_role("button", name="Done", exact=True).click()
+            run_graph(base, graph)
+            assert json_request(f"{platform}/stats")["counts"][f"{service}_saved_key"] >= 1
+
+            settings = open_settings()
+            expect(settings.get_by_label("API key", exact=True)).to_have_value("")
+            expect(settings.get_by_role("status")).to_contain_text("API key saved.")
+            if provider == "minimax":
+                region = settings.get_by_label("MiniMax platform")
+                expect(region).to_have_value("cn")
+                region.select_option("global")
+                expect(settings.get_by_role("status")).to_contain_text("Mainland China key stays active")
+                assert json_request(f"{endpoint}/status", {}, {"Origin": base}) == source
+                region.select_option("cn")
+            settings.get_by_role("button", name="Remove saved key", exact=True).click()
+            expect(settings.get_by_role("status")).to_contain_text("startup environment")
+            if provider == "minimax":
+                expect(region).to_have_value("global")
+            assert not key_path.exists()
+            settings.get_by_role("button", name="Close", exact=True).click()
+        print("Browser configured both BYOK providers, ran with saved keys, and restored startup keys.", flush=True)
 
         for path in sorted((ROOT / "workflows").glob("jmovie-*.json")):
             workflow = json_request(f"{base}/api/workflow_templates/ComfyUI-JMovie/{path.name}")

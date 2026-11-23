@@ -1,9 +1,11 @@
 from comfy_api.latest import io
 
+from .credentials import key_configuration
 from .managed import managed_media
 from .media import decode_audio, decode_image, decode_video, png_image
 from .minimax import generate_h3
 from .providers import HOSTED_GPT_IMAGE_MODELS, MAX_IMAGE_BYTES, OPENAI_MODELS, SEEDREAM_MODELS, generate_image
+from .tasks import fingerprint
 from .video import (
     H3, MAX_INLINE_BYTES, MAX_VIDEO_BYTES, VIDEO_MODELS, VIDEO_RATIOS, VIDEO_RESOLUTIONS,
     inline_media, video_settings,
@@ -42,10 +44,15 @@ class CloudImage(io.ComfyNode):
             node_id="JMovieCloudImage",
             display_name="GPT Image (OpenAI BYOK)",
             category=BYOK_CATEGORY,
-            description="Generate or edit images with an OpenAI API key from the ComfyUI server environment.",
+            description="Generate or edit images with your OpenAI API key.",
             inputs=image_inputs(OPENAI_MODELS),
             outputs=[io.Image.Output()],
         )
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        key, _, _ = key_configuration("openai")
+        return fingerprint(key)
 
     @classmethod
     async def execute(cls, model, prompt, reference_image=None):
@@ -176,7 +183,7 @@ class MiniMaxH3(io.ComfyNode):
             node_id="JMovieMiniMaxH3",
             display_name="MiniMax H3 (BYOK)",
             category=BYOK_CATEGORY,
-            description="Generate video with a MiniMax API key from the ComfyUI server environment.",
+            description="Generate video with your MiniMax API key.",
             inputs=[
                 io.String.Input("prompt", multiline=True),
                 io.Int.Input("duration", default=5, min=4, max=15),

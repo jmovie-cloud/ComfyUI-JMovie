@@ -180,10 +180,13 @@ class MockPlatform:
         return web.json_response({"counts": dict(self.counts), "cost": self.cost, "tasks": list(self.tasks)})
 
     async def provider(self, request):
-        if request.match_info["provider"] == "minimax":
+        if request.match_info["provider"] in {"minimax", "minimax-cn"}:
             return await self.minimax(request)
         assert request.match_info["provider"] == "openai"
-        assert request.headers["Authorization"] == "Bearer mock-openai"
+        token = request.headers["Authorization"]
+        assert token in {"Bearer mock-openai", "Bearer mock-openai-saved"}
+        if token == "Bearer mock-openai-saved":
+            self.counts["openai_saved_key"] += 1
         path = request.match_info["path"]
         assert path in {"v1/images/generations", "v1/images/edits"}
         if path.endswith("edits"):
@@ -196,7 +199,14 @@ class MockPlatform:
         return web.json_response({"data": [{"b64_json": base64.b64encode(self.image).decode()}]})
 
     async def minimax(self, request):
-        assert request.headers["Authorization"] == "Bearer mock-minimax"
+        service = request.match_info["provider"]
+        token = request.headers["Authorization"]
+        if service == "minimax-cn":
+            assert token == "Bearer mock-minimax-cn-saved"
+        else:
+            assert token in {"Bearer mock-minimax", "Bearer mock-minimax-saved"}
+        if token.endswith("-saved"):
+            self.counts[f"{service}_saved_key"] += 1
         path = request.match_info["path"]
         if request.method == "POST":
             assert path == "v2/video_generation"
@@ -215,6 +225,7 @@ class MockPlatform:
             else:
                 assert not images and payload["ratio"] == "16:9"
             identifier = self.create_task("minimax", "video")
+            self.tasks[identifier]["region_service"] = service
             if text["text"] == "simulate-unknown":
                 raise web.HTTPServiceUnavailable()
             return web.json_response({"task_id": identifier})
@@ -222,6 +233,7 @@ class MockPlatform:
         assert request.method == "GET" and path.startswith("v2/query/video_generation/")
         identifier = path.rsplit("/", 1)[-1]
         task = self.lookup(identifier, "minimax")
+        assert task["region_service"] == service
         task["polls"] += 1
         response = {"id": identifier, "model": "MiniMax-H3", "status": "queued"}
         if task["polls"] >= 2:

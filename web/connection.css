@@ -1,17 +1,26 @@
 .jmovie-connect {
+    --jmovie-surface: hsl(0 0% 10%);
+    --jmovie-field: hsl(0 0% 7%);
+    --jmovie-text: hsl(60 11% 96%);
+    --jmovie-muted: hsl(0 0% 70%);
+    --jmovie-border: hsl(0 0% 28%);
+    --jmovie-primary: hsl(1.786 100% 67.059%);
+    --jmovie-radius: 6px;
     position: fixed;
     inset: 0;
-    width: min(460px, calc(100vw - 2rem));
+    box-sizing: border-box;
+    width: min(466px, calc(100vw - 2rem));
     height: fit-content;
+    max-height: calc(100dvh - 2rem);
     margin: auto;
     padding: 1.5rem;
     pointer-events: auto;
-    border: 1px solid #483b3d;
-    border-top: 3px solid #ff5c57;
-    border-radius: 12px;
-    background: #191718;
-    color: #f7f5f5;
-    box-shadow: 0 20px 56px rgb(0 0 0 / 55%);
+    overflow: auto;
+    border: 1px solid var(--jmovie-border);
+    border-radius: var(--jmovie-radius);
+    background: var(--jmovie-surface);
+    color: var(--jmovie-text);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 48%);
     color-scheme: dark;
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -24,11 +33,14 @@
     margin: 0;
     font-size: 1.5rem;
     line-height: 1.2;
+    font-weight: 650;
+    letter-spacing: -.02em;
 }
 
+.jmovie-connect__intro,
 .jmovie-connect__status {
     margin: .875rem 0;
-    color: #cfc5c7;
+    color: var(--jmovie-muted);
 }
 
 .jmovie-connect__code-field {
@@ -38,9 +50,9 @@
     align-items: center;
     gap: .5rem;
     padding: .5rem .625rem .5rem 1rem;
-    border: 1px solid #604e52;
-    border-radius: 8px;
-    background: #111;
+    border: 1px solid var(--jmovie-border);
+    border-radius: var(--jmovie-radius);
+    background: var(--jmovie-field);
 }
 
 .jmovie-connect__code-field code {
@@ -58,10 +70,12 @@
 
 .jmovie-connect button,
 .jmovie-connect__button {
-    padding: .5rem .75rem;
-    border: 1px solid #6d5b60;
-    border-radius: 7px;
-    background: #252022;
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: .5rem .875rem;
+    border: 1px solid var(--jmovie-border);
+    border-radius: var(--jmovie-radius);
+    background: hsl(0 0% 13%);
     color: inherit;
     font: inherit;
     text-decoration: none;
@@ -69,20 +83,75 @@
 }
 
 .jmovie-connect__actions .jmovie-connect__primary {
-    border-color: #ff5c57;
-    background: #ff5c57;
-    color: #190d0f;
+    border-color: var(--jmovie-primary);
+    background: var(--jmovie-primary);
+    color: var(--jmovie-field);
     font-weight: 700;
 }
 
 .jmovie-connect button:disabled {
-    opacity: .6;
-    cursor: wait;
+    opacity: .55;
+    cursor: default;
 }
 
 .jmovie-connect :focus-visible {
-    outline: 2px solid #ffaaa5;
+    outline: 2px solid var(--jmovie-primary);
     outline-offset: 2px;
+}
+
+.jmovie-connect__field-heading {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .25rem .5rem;
+    margin: 1.25rem 0 .5rem;
+    font-size: .875rem;
+}
+
+.jmovie-connect__field-heading label {
+    font-weight: 650;
+}
+
+.jmovie-connect__text-link {
+    color: var(--jmovie-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.jmovie-connect input[type=password],
+.jmovie-connect select {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 40px;
+    padding: .5rem .75rem;
+    border: 1px solid var(--jmovie-border);
+    border-radius: var(--jmovie-radius);
+    background: var(--jmovie-field);
+    color: var(--jmovie-text);
+    font: inherit;
+}
+
+.jmovie-connect input::placeholder {
+    color: var(--jmovie-muted);
+}
+
+.jmovie-connect__key-status,
+.jmovie-connect__platform-hint {
+    min-height: 1.5em;
+    margin: .5rem 0 0;
+    font-size: .875rem;
+}
+
+.jmovie-connect [data-platform]:not([hidden]) + .jmovie-connect__field-heading {
+    margin-top: 1rem;
+}
+
+.jmovie-connect__key-status[data-error=true] {
+    color: #ff9b96;
+}
+
+.jmovie-connect [data-remove] {
+    margin-inline-start: auto;
 }
 
 .jmovie-connect [hidden] {

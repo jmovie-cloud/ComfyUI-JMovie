@@ -1,11 +1,10 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { byokNodes, keyButtonLabel, showKeySettings } from "./key-settings.js";
 
 const managedNodes = new Set([
     "JMovieManagedImage", "JMovieManagedVideo", "JMovieManagedAudio", "JMovieCloudVideo", "JMovieResumeVideo",
 ]);
-let currentDialog;
-
 async function request(action) {
     const response = await api.fetchApi(`/jmovie-cloud/connection/${action}`, {
         method: "POST",
@@ -22,14 +21,13 @@ async function request(action) {
 }
 
 function showConnection() {
-    if (currentDialog?.open) return;
+    if (document.querySelector(".jmovie-connect[open]")) return;
     const dialog = document.createElement("dialog");
-    currentDialog = dialog;
     dialog.className = "jmovie-connect";
     dialog.setAttribute("aria-labelledby", "jmovie-cloud-title");
     const title = document.createElement("h2");
     title.id = "jmovie-cloud-title";
-    title.textContent = "JMovie API account";
+    title.textContent = "Connect to JMovie";
     const message = document.createElement("p");
     message.className = "jmovie-connect__status";
     message.setAttribute("role", "status");
@@ -75,9 +73,10 @@ function showConnection() {
         connect.hidden = state.state === "connected" || (state.state === "pending" && !!code);
         disconnect.hidden = state.state !== "connected" && state.state !== "pending";
         disconnect.textContent = state.state === "pending" ? "Cancel request" : "Disconnect";
+        close.classList.toggle("jmovie-connect__primary", state.state === "connected");
         if (state.state === "pending") {
             const pendingMessage = code
-                ? "Enter this device code on the JMovie API authorization page, then return here."
+                ? "Copy this code and paste it on the JMovie authorization page. Then return here."
                 : "Authorization is pending. Select Connect JMovie to see the code again.";
             if (message.textContent !== pendingMessage) message.textContent = pendingMessage;
             timer = setTimeout(() => change("poll"), 2500);
@@ -153,8 +152,11 @@ app.registerExtension({
         document.head.append(stylesheet);
     },
     nodeCreated(node) {
-        if (!managedNodes.has(node.comfyClass)) return;
-        const button = node.addWidget("button", "Connect JMovie", null, showConnection);
+        const provider = byokNodes[node.comfyClass];
+        if (!provider && !managedNodes.has(node.comfyClass)) return;
+        const button = provider
+            ? node.addWidget("button", keyButtonLabel(provider), null, () => showKeySettings(provider))
+            : node.addWidget("button", "Connect JMovie", null, showConnection);
         button.serialize = false;
         button.options = { ...button.options, serialize: false };
     },

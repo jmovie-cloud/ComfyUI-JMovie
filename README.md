@@ -6,14 +6,18 @@ Generate images, video, and audio for adult (NSFW) productions in ComfyUI. Conne
 
 ## Install
 
-Requires ComfyUI 0.36.0 or later and Python 3.11 or later. Run ComfyUI as a local, single-user server on localhost. From your ComfyUI folder, clone the plugin into `custom_nodes`. [ComfyUI custom node installation guide](https://docs.comfy.org/installation/install_custom_node)
+Requires ComfyUI 0.36.0 or later and Python 3.11 or later. Run ComfyUI as a local, single-user server on localhost.
+
+Download the `ComfyUI-JMovie-v*.zip` asset from [GitHub Releases](https://github.com/jmovie-cloud/ComfyUI-JMovie/releases). Extract the `ComfyUI-JMovie` folder into `ComfyUI/custom_nodes`, then restart ComfyUI.
+
+For a Git checkout, run these commands from your ComfyUI folder and restart:
 
 ```sh
 cd custom_nodes
 git clone https://github.com/jmovie-cloud/ComfyUI-JMovie.git
 ```
 
-You can also [download the source ZIP](https://github.com/jmovie-cloud/ComfyUI-JMovie/archive/refs/heads/main.zip). Extract its folder into `custom_nodes` and rename it to `ComfyUI-JMovie`. Keep one copy of the plugin, then restart ComfyUI.
+Keep one copy of the plugin in `custom_nodes`. [ComfyUI custom node installation guide](https://docs.comfy.org/installation/install_custom_node)
 
 ## Connect JMovie
 
@@ -44,12 +48,18 @@ Wallet access to MiniMax H3 and GPT Image is pending. Both providers have a dire
 
 ## Optional provider API keys
 
-Set your provider key in the ComfyUI server environment and restart ComfyUI. Open **JMovie Cloud → Advanced → BYOK**. Each node calls its provider directly and usage is billed to your provider account.
+Open **JMovie Cloud → Advanced → BYOK** and add the provider node. Click **Set MiniMax API key** or **Set OpenAI API key**, paste your key, and click **Save API key**. The key is saved on the local ComfyUI installation. New runs can use it immediately. Each provider bills your own account directly.
 
-| Node | Environment variable | Workflow and setup |
+| Node | Key setup in the node | Workflow and setup |
 | --- | --- | --- |
-| MiniMax H3 (BYOK) | `MINIMAX_API_KEY` | [MiniMax H3 workflow](workflows/byok/minimax-h3.json) · [MiniMax API keys](https://platform.minimax.io/console/keys) · [MiniMax video API](https://platform.minimax.io/docs/api-reference/video-generation-v2-create) |
-| GPT Image (OpenAI BYOK) | `OPENAI_API_KEY` | [GPT Image workflow](workflows/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation) |
+| MiniMax H3 (BYOK) | **Set MiniMax API key**, then select the issuing platform | [MiniMax H3 workflow](workflows/byok/minimax-h3.json) · [International API keys](https://platform.minimax.io/console/keys) · [Mainland China API keys](https://platform.minimax.cn/console/keys) |
+| GPT Image (OpenAI BYOK) | **Set OpenAI API key** | [GPT Image workflow](workflows/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation) |
+
+![MiniMax BYOK settings with Mainland China selected, a link to the matching key page, and the Save API key button.](docs/images/comfyui-byok.webp)
+
+Open the same settings to replace or remove a saved key. The form shows the key source and keeps previously saved values hidden. Advanced setups can supply `MINIMAX_API_KEY` or `OPENAI_API_KEY` in the ComfyUI startup environment. A key saved in the form takes precedence.
+
+MiniMax keys must match the issuing platform. For a Mainland China startup key, also set `MINIMAX_API_REGION=cn`. Startup keys use the International platform by default.
 
 MiniMax H3 supports text prompts, first and last frames, or reference images. Choose 4–15 seconds at 768P or 2K. GPT Image supports text-to-image and reference-image edits, including GPT Image 2.6 Flare and Sunburst.
 

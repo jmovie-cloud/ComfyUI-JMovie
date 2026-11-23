@@ -1,7 +1,6 @@
 """Bounded HTTP for cloud media. Provider bodies and URLs stay out of errors."""
 
 import json
-import os
 
 import aiohttp
 
@@ -13,13 +12,6 @@ class RequestError(RuntimeError):
             super().__init__("Cloud request interrupted or returned an invalid response.")
         else:
             super().__init__(f"Cloud request returned HTTP {status}.")
-
-
-def api_key(name):
-    key = os.environ.get(name, "").strip()
-    if not key:
-        raise RuntimeError(f"Set {name} in the ComfyUI server environment.")
-    return key
 
 
 def client(timeout=45, *, connector=None):

@@ -7,10 +7,10 @@ from threading import Lock
 from time import monotonic
 
 from aiohttp import web
-from comfy.cli_args import args
 from yarl import URL
 
 from .delivery import supplier_media
+from .local_access import LOOPBACK, local_comfy, require_local_request
 from .tasks import ResultExpired, run_task
 from .transport import RequestError, client, request, request_json
 
@@ -19,17 +19,8 @@ CLIENT_ID = "jmovie-cloud"
 DEFAULT_PLATFORM = "https://api.j-movie.com"
 SCOPES = frozenset({"image:generate", "video:generate", "audio:generate", "tasks:read"})
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
-LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 API = "/api/v1/comfy"
 MAX_LIFETIME = 86400
-
-
-def local_comfy():
-    return (
-        not args.multi_user
-        and args.enable_cors_header is None
-        and all(host.strip() in LOOPBACK for host in args.listen.split(","))
-    )
 
 
 def platform():
@@ -218,17 +209,7 @@ connection = Connection()
 
 def add_routes(server):
     async def connection_action(request):
-        try:
-            local_origin = URL(f"{request.scheme}://{request.host}")
-            if (
-                not local_comfy() or local_origin.host not in LOOPBACK
-                or request.remote not in {"127.0.0.1", "::1"}
-                or request.headers.get("Origin") != str(local_origin.origin())
-                or request.headers.get("Sec-Fetch-Site", "same-origin") != "same-origin"
-            ):
-                raise ValueError()
-        except ValueError:
-            raise web.HTTPForbidden()
+        require_local_request(request)
         action = {"start": connection.start, "poll": connection.poll, "disconnect": connection.disconnect}
         handler = action.get(request.match_info["action"])
         if handler is None:
