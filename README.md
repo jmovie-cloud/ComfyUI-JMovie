@@ -1,34 +1,36 @@
 # JMovie Cloud for ComfyUI
 
-Generate images, video, and audio for adult (NSFW) productions in ComfyUI using a [JMovie API account](https://api.j-movie.com/sign-up). Connect once and run all three nodes with your API wallet. Paid jobs use [JMovie API rates](https://api.j-movie.com/pricing) and settle against actual usage. A JMovie studio seat is unnecessary. Model availability depends on the provider's content policy. The [JMovie production workspace](https://j-movie.com) is a separate cloud editing product.
+Generate images, video, and audio for adult (NSFW) productions in ComfyUI. Connect once with a JMovie API account to use all three nodes. Jobs run in the cloud and are charged to your API wallet based on usage. Supported content depends on the model. [JMovie API pricing](https://api.j-movie.com/pricing)
 
-![ComfyUI canvas showing JMovie Image, JMovie Video, and JMovie Audio connected to their output nodes](docs/images/jmovie-workflows.webp)
+![The three example workflows in ComfyUI. JMovie Image connects to Save Image, JMovie Video to Save Video, and JMovie Audio to Preview Audio.](docs/images/jmovie-workflows.webp)
 
 ## Install
 
-Use [ComfyUI](https://docs.comfy.org/installation/system_requirements) 0.36.0 or later, with Python 3.11 or later. Run ComfyUI as a local, single-user server on loopback. From its installation folder, run the following commands and restart ComfyUI.
+Requires ComfyUI 0.36.0 or later and Python 3.11 or later. Run ComfyUI as a local, single-user server on localhost. From your ComfyUI folder, clone the plugin into `custom_nodes`. [ComfyUI custom node installation guide](https://docs.comfy.org/installation/install_custom_node)
 
 ```sh
 cd custom_nodes
 git clone https://github.com/jmovie-cloud/ComfyUI-JMovie.git
 ```
 
-For a pinned version, download **Source code (zip)** from [GitHub Releases](https://github.com/jmovie-cloud/ComfyUI-JMovie/releases), extract one copy into `custom_nodes/ComfyUI-JMovie`, and restart ComfyUI. The [Comfy Registry](https://registry.comfy.org/) listing is pending.
+You can also [download the source ZIP](https://github.com/jmovie-cloud/ComfyUI-JMovie/archive/refs/heads/main.zip). Extract its folder into `custom_nodes` and rename it to `ComfyUI-JMovie`. Keep one copy of the plugin, then restart ComfyUI.
 
 ## Connect JMovie
 
-1. Open a template from **Templates → ComfyUI-JMovie**, or add a node from **JMovie Cloud**.
-2. Click **Connect JMovie** on the node, then **Connect JMovie** in the dialog. Select **Copy code** beside the device code. Use **Open authorization page** to reopen the browser page if needed.
-3. Sign in to [JMovie API](https://api.j-movie.com/sign-in?comfy=1). Paste the code on the authorization page, review the account and wallet, then select **Authorize**.
-4. Return to ComfyUI. When the dialog shows that you are connected, close it, enter a prompt, and select **Run**. Manage your balance and add funds in [Add funds & billing](https://api.j-movie.com/console?tab=billing).
+1. In ComfyUI, open **Templates**, choose **ComfyUI-JMovie** under **Extensions**, and select **jmovie-image**. You can also add a node from **Node Library → JMovie Cloud** or drag an [example workflow JSON](#example-workflows) onto the canvas.
+2. Select **Connect JMovie** on the node, then select **Connect JMovie** in the dialog. When the browser tab opens, return to ComfyUI and select **Copy code**. If you closed the tab, select **Open authorization page**.
 
-![ComfyUI connection dialog showing a device code, a Copy code button, and the authorization link](docs/images/comfyui-connect.webp)
+   ![ComfyUI connection dialog with a sample device code, the Copy code button, and the Open authorization page link.](docs/images/comfyui-connect.webp)
 
-![JMovie API authorization page showing the wallet, device code field, and Authorize button](docs/images/jmovie-authorize.webp)
+3. In the browser, [sign in to JMovie API](https://api.j-movie.com/sign-in?comfy=1) or choose **Create an account**. On **Connect ComfyUI**, check your account and available balance, paste your own device code, and select **Authorize**.
+
+   ![JMovie API authorization page with a demo wallet, the device-code field, and the Authorize button.](docs/images/jmovie-authorize.webp)
+
+4. Once ComfyUI says **Connected to JMovie API**, close the dialog. If your balance is too low, use **Top up** on the authorization page or open [Add funds & billing](https://api.j-movie.com/console?tab=billing) while signed in. Enter a prompt in the node and select **Run**.
 
 ## Example workflows
 
-Open a linked workflow on GitHub, select **Download raw file**, and drag the JSON onto the ComfyUI canvas. The same workflows are available in the template browser.
+Open a workflow below on GitHub, select **Download raw file**, and drag the downloaded JSON onto the ComfyUI canvas. The same workflows are available under **Templates → ComfyUI-JMovie**.
 
 | Node | Default model | Workflow |
 | --- | --- | --- |
@@ -36,11 +38,13 @@ Open a linked workflow on GitHub, select **Download raw file**, and drag the JSO
 | JMovie Video | Dreamina Seedance 2.5 | [Generate and save a video](workflows/jmovie-video.json) |
 | JMovie Audio | Seed Audio 1.0 | [Generate and preview audio](workflows/jmovie-audio.json) |
 
-JMovie Image supports an optional reference image. Choose a hosted GPT Image model for general image generation or editing with the same API wallet. JMovie Video offers Seedance 2.5 and MiniMax H3 for prompts, frame anchors, or visual references. JMovie Audio takes a dialogue, narration, or sound prompt and returns a native ComfyUI audio output. **Target seconds** guides generation. Billing uses the duration reported by the model before post-processing.
+JMovie Image accepts an optional reference image. JMovie Video accepts a text prompt, frame anchors, or visual references. JMovie Audio takes a dialogue, narration, or sound prompt. **Target seconds** guides the model, and billing uses the original generated duration reported by the provider. The audio example previews the result. Add **Save Audio (Advanced)** to write an audio file.
+
+MiniMax H3 and JMovie-hosted GPT Image are currently unavailable. For GPT Image with your own OpenAI key, use the optional node below.
 
 ## Optional GPT Image with your own OpenAI API key
 
-**JMovie Cloud → Advanced → BYOK → GPT Image (OpenAI BYOK)** is the only node that accepts your own provider key. Set `OPENAI_API_KEY` in the ComfyUI server environment and restart ComfyUI. The node requests `api.openai.com` directly and OpenAI bills your account. [GPT Image workflow](examples/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation)
+**JMovie Cloud → Advanced → BYOK → GPT Image (OpenAI BYOK)** is the only node that accepts your own provider key. Set `OPENAI_API_KEY` in the ComfyUI server environment and restart ComfyUI. The node requests `api.openai.com` directly and OpenAI bills your account. [GPT Image workflow](workflows/byok/cloud-image.json) · [OpenAI API keys](https://platform.openai.com/api-keys) · [OpenAI image generation guide](https://developers.openai.com/api/docs/guides/image-generation)
 
 ## Manage a connection or recover a task
 
@@ -50,8 +54,6 @@ JMovie Image supports an optional reference image. Choose a hosted GPT Image mod
 
 ## Support and development
 
-Report plugin problems in [GitHub Issues](https://github.com/jmovie-cloud/ComfyUI-JMovie/issues). Include the node name, ComfyUI version, and error message with credentials removed.
+Include the node name, ComfyUI version, and error message with credentials removed. [Report a problem on GitHub](https://github.com/jmovie-cloud/ComfyUI-JMovie/issues)
 
 The default account origin is `https://api.j-movie.com`. For local development, `JMOVIE_CLOUD_BASE_URL` can point to a compatible [JMovie plugin backend](docs/jmovie-platform-contract.md). The local browser and generation checks use synthetic accounts and media. Run `python tests/comfy_smoke.py /absolute/path/to/ComfyUI` from this repository with Playwright, Chrome, and FFmpeg available.
-
-The initial Registry package is `jmovie-cloud` version `0.1.0`. See the [Comfy Registry publishing guide](https://docs.comfy.org/registry/publishing) for publisher setup.

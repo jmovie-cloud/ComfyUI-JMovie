@@ -170,7 +170,7 @@ def browser_checks(base, platform, video, load_image, fixtures):
         page.wait_for_function("!!window.app?.graph")
         page.wait_for_function("!!window.LiteGraph?.registered_node_types?.JMovieManagedVideo")
 
-        workflow = json.loads((ROOT / "examples/byok/cloud-image.json").read_text())
+        workflow = json.loads((ROOT / "workflows/byok/cloud-image.json").read_text())
         graph = page.evaluate("""async workflow => {
             await window.app.handleFile(new File([JSON.stringify(workflow)], 'cloud-image.json', {type: 'application/json'}));
             return (await window.app.graphToPrompt()).output;
@@ -180,7 +180,8 @@ def browser_checks(base, platform, video, load_image, fixtures):
         print("Browser imported and executed the advanced BYOK image example.", flush=True)
 
         for path in sorted((ROOT / "workflows").glob("jmovie-*.json")):
-            workflow = json.loads(path.read_text())
+            workflow = json_request(f"{base}/api/workflow_templates/ComfyUI-JMovie/{path.name}")
+            assert workflow == json.loads(path.read_text())
             serialized = page.evaluate("""async ([workflow, name]) => {
                 await window.app.handleFile(new File([JSON.stringify(workflow)], name, {type: 'application/json'}));
                 const output = (await window.app.graphToPrompt()).output;
@@ -189,6 +190,7 @@ def browser_checks(base, platform, video, load_image, fixtures):
             assert serialized["output"]["1"]["class_type"] == workflow["nodes"][0]["type"]
             values = serialized["graph"]["nodes"][0]["widgets_values"]
             assert len(values) == len(workflow["nodes"][0]["widgets_values"]), values
+        print("ComfyUI served all three templates and the browser imported them.", flush=True)
 
         try:
             json_request(f"{base}/jmovie-cloud/connection/start", {}, {"Origin": "https://wrong.invalid"})
