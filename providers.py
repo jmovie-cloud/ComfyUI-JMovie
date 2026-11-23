@@ -1,8 +1,8 @@
 import base64
-import json
-import os
 
 import aiohttp
+
+from .transport import RequestError, api_key, client, request_json
 
 
 OPENAI_MODELS = ("gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst")
@@ -51,31 +51,23 @@ async def generate_image(model, prompt, reference=None):
     if reference is not None and len(reference) > 30_000_000:
         raise ValueError("Reference image exceeds 30 MB after PNG encoding.")
     url, key_name, payload = image_request(model, prompt, reference)
-    key = os.environ.get(key_name, "").strip()
-    if not key:
-        raise RuntimeError(f"Set {key_name} on your ComfyUI server and restart it.")
+
+    key = api_key(key_name)
     body = {"data": payload} if isinstance(payload, aiohttp.FormData) else {"json": payload}
     try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:
-            async with session.post(
-                url, headers={"Authorization": f"Bearer {key}"}, allow_redirects=False, **body
-            ) as response:
-                if response.status != 200:
-                    raise RuntimeError(f"Image provider returned HTTP {response.status}.")
-                limit = (MAX_IMAGE_BYTES * 4 // 3) + 65536
-                raw = bytearray()
-                async for chunk in response.content.iter_chunked(65536):
-                    raw.extend(chunk)
-                    if len(raw) > limit:
-                        raise RuntimeError("Image provider response exceeds the size limit.")
-    except (aiohttp.ClientError, TimeoutError) as error:
-        raise RuntimeError("Image request interrupted. Check provider usage before rerunning.") from error
+        async with client(300) as session:
+            limit = (MAX_IMAGE_BYTES * 4 // 3) + 65536
+            _, result = await request_json(session, "POST", url, token=key, limit=limit, **body)
+    except RequestError as error:
+        if error.status is None or error.status >= 500:
+            raise RuntimeError("Image request unconfirmed. Check provider usage before rerunning.") from None
+        raise
 
     try:
-        encoded = json.loads(raw)["data"][0]["b64_json"]
+        encoded = result["data"][0]["b64_json"]
         decoded = base64.b64decode(encoded, validate=True)
         if not decoded or len(decoded) > MAX_IMAGE_BYTES:
             raise ValueError("Invalid image length.")
         return decoded
-    except (ValueError, KeyError, TypeError, IndexError) as error:
-        raise RuntimeError("Image provider did not return a usable image.") from error
+    except (ValueError, KeyError, TypeError, IndexError):
+        raise RuntimeError("Image provider did not return a usable image.") from None

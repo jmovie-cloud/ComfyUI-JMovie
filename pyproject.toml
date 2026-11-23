@@ -1,9 +1,14 @@
 [project]
 name = "jmovie-cloud"
-version = "0.1.0.dev0"
-description = "Cloud media nodes for ComfyUI"
-requires-python = ">=3.10"
-dependencies = ["aiohttp", "Pillow"]
+version = "0.1.0"
+description = "JMovie production-account and bring-your-own-key cloud media nodes for ComfyUI."
+requires-python = ">=3.11"
+dependencies = ["aiohttp>=3.11.8", "Pillow"]
+
+[project.urls]
+Repository = "https://github.com/jmovie-cloud/ComfyUI-JMovie"
 
 [tool.comfy]
 DisplayName = "JMovie Cloud"
+requires-comfyui = ">=0.36.0"
+# Set PublisherId after the Registry publisher is assigned.
